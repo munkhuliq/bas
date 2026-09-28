@@ -1,6 +1,8 @@
 .mcp.json
 .claude/
 .wrangler/
+.git/
+.gitignore
 testsprite_tests/
 supabase-setup.sql
 supabase-function-admin.ts
