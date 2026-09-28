@@ -1,0 +1,13 @@
+name = "mankhul-shortages"
+main = "worker.js"
+compatibility_date = "2026-09-25"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mankhul-db"
+database_id = "07ee07d4-7ce9-41f0-aed4-96d48c18a546"
+
+[assets]
+directory = "."
+binding = "ASSETS"
+not_found_handling = "single-page-application"

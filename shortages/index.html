@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0e3a40">
+<title>نظام النواقص</title>
+<style>
+  :root{
+    --ink:#0c1f26;--deep:#0e3a40;--teal:#127a6e;--teal-soft:#e4f3f0;
+    --amber:#d98324;--bg:#f6f4ee;--card:#ffffff;--line:#e3ded3;--muted:#6c7a76;
+    --ok:#1f9d6b;--bad:#c9483c;--warn:#b8860b;--shadow:0 8px 28px rgba(14,58,64,.08);--radius:18px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{font-family:'IBM Plex Sans Arabic',system-ui,'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--ink);line-height:1.7;font-size:15px}
+  h1,h2,h3{font-family:'Cairo','IBM Plex Sans Arabic',system-ui,sans-serif;margin:0}
+  button,input,select,textarea{font-family:inherit;font-size:15px}
+  button{cursor:pointer;border:none}
+  .wrap{max-width:900px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+
+  .topbar{background:linear-gradient(135deg,var(--deep),var(--teal));color:#fff;padding:18px 18px 22px;position:relative;overflow:hidden}
+  .topbar::after{content:"";position:absolute;left:-50px;top:-70px;width:200px;height:200px;background:radial-gradient(circle,rgba(217,131,36,.35),transparent 70%)}
+  .bar{display:flex;align-items:center;gap:12px;position:relative;z-index:1}
+  .logo{width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.14);display:grid;place-items:center;font-size:22px}
+  .bar .t{font-weight:700;font-size:18px}
+  .bar .s{font-size:12px;opacity:.8}
+  .spacer{flex:1}
+  .iconbtn{width:42px;height:42px;border-radius:14px;background:rgba(255,255,255,.14);color:#fff;font-size:18px;position:relative;display:grid;place-items:center}
+  .badge{position:absolute;top:-5px;left:-5px;min-width:20px;height:20px;border-radius:10px;background:var(--amber);color:#fff;font-size:11px;display:grid;place-items:center;padding:0 5px;font-weight:700}
+
+  main{flex:1;padding:16px 16px 40px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 10px;text-align:center;box-shadow:var(--shadow)}
+  .stat b{display:block;font-size:22px;line-height:1.3}
+  .stat span{font-size:11px;color:var(--muted)}
+  .stat.p b{color:var(--amber)}.stat.g b{color:var(--ok)}.stat.b b{color:var(--teal)}
+
+  .tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{white-space:nowrap;padding:8px 16px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--muted);font-size:13px}
+  .tab.on{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:600}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;margin-bottom:12px}
+  .card.urgent{border-color:#f0c9a0;background:linear-gradient(180deg,#fffaf3,#fff)}
+  .card h3{font-size:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .qty{font-size:12px;background:var(--teal-soft);color:var(--teal);padding:2px 10px;border-radius:999px;font-weight:600}
+  .meta{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+  .pill{font-size:11px;padding:2px 9px;border-radius:999px;font-weight:600}
+  .pill.pending{background:#fdf1e2;color:var(--amber)}
+  .pill.purchased{background:#e8eefb;color:#2b5aa8}
+  .pill.completed{background:#e5f5ee;color:var(--ok)}
+  .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .btn{padding:9px 16px;border-radius:12px;background:var(--teal);color:#fff;font-weight:600;font-size:14px}
+  .btn.amber{background:var(--amber)}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+  .btn.bad{background:var(--bad)}
+  .btn.sm{padding:6px 12px;font-size:13px}
+  .empty{text-align:center;color:var(--muted);padding:40px 10px}
+  .empty div:first-child{font-size:40px;margin-bottom:8px}
+
+  form{display:grid;gap:10px}
+  label{font-size:12.5px;color:var(--muted);display:block;margin-bottom:4px}
+  input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--teal-soft);border-color:var(--teal)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+  #login{min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(160deg,var(--deep),var(--teal))}
+  .loginbox{background:#fff;border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,.25);padding:26px 22px;width:100%;max-width:380px}
+  .loginbox .logo{background:var(--teal-soft);color:var(--teal);margin:0 auto 10px;width:56px;height:56px;font-size:26px}
+  .loginbox h2{text-align:center;font-size:20px;margin-bottom:2px}
+  .loginbox p{text-align:center;color:var(--muted);font-size:13px;margin:0 0 18px}
+
+  .overlay{position:fixed;inset:0;background:rgba(12,31,38,.5);display:none;place-items:center;padding:18px;z-index:50}
+  .overlay.on{display:grid}
+  .sheet{background:#fff;border-radius:20px;padding:18px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .sheet h3{margin-bottom:12px;font-size:17px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:14px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:90%;text-align:center}
+  .toast.on{opacity:1}
+  .toast.bad{background:var(--bad)}
+  .toast.ok{background:var(--ok)}
+  .hidden{display:none!important}
+  .notif{display:flex;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .notif:last-child{border-bottom:none}
+  .notif .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);margin-top:9px;flex:0 0 auto}
+  .notif small{color:var(--muted);font-size:11px}
+  .who{font-size:12px;color:var(--muted)}
+  @media(max-width:420px){.stats{grid-template-columns:1fr 1fr 1fr}}
+</style>
+</head>
+<body>
+
+<div id="login" class="hidden">
+  <form class="loginbox" id="loginForm" autocomplete="on">
+    <div class="logo">📦</div>
+    <h2>نظام النواقص</h2>
+    <p>سجّل دخولك للمتابعة</p>
+    <div style="margin-bottom:12px">
+      <label for="lgUser">اسم المستخدم</label>
+      <input id="lgUser" name="username" autocomplete="username" required>
+    </div>
+    <div style="margin-bottom:16px">
+      <label for="lgPass">كلمة المرور</label>
+      <input id="lgPass" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <button class="btn" style="width:100%" type="submit">دخول</button>
+  </form>
+</div>
+
+<div id="app" class="wrap hidden">
+  <header class="topbar">
+    <div class="bar">
+      <div class="logo">📦</div>
+      <div>
+        <div class="t">نظام النواقص</div>
+        <div class="s" id="whoami">—</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="iconbtn" id="bellBtn" title="الإشعارات">🔔<span class="badge hidden" id="bellBadge">0</span></button>
+      <button class="iconbtn" id="outBtn" title="خروج">⏻</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="stats">
+      <div class="stat p"><b id="cPending">0</b><span>بانتظار الشراء</span></div>
+      <div class="stat b"><b id="cPurchased">0</b><span>تم الشراء</span></div>
+      <div class="stat g"><b id="cCompleted">0</b><span>مستلمة</span></div>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-f="all">الكل</button>
+      <button class="tab" data-f="pending">بانتظار الشراء</button>
+      <button class="tab" data-f="purchased">تم الشراء</button>
+      <button class="tab" data-f="completed">مستلمة</button>
+    </div>
+
+    <section id="newBox" class="card hidden">
+      <h3 style="margin-bottom:10px">➕ تسجيل نقص جديد</h3>
+      <form id="newForm">
+        <div><label for="nName">اسم المادة</label><input id="nName" required></div>
+        <div class="two">
+          <div><label for="nQty">الكمية الناقصة</label><input id="nQty" type="number" step="any" min="0" value="1" required></div>
+          <div><label for="nUnit">الوحدة</label><input id="nUnit" value="قطعة"></div>
+        </div>
+        <div><label for="nReason">سبب النقص / ملاحظات</label><textarea id="nReason" rows="2"></textarea></div>
+        <div class="two">
+          <div><label for="nPriority">الأهمية</label><select id="nPriority"><option value="normal">عادي</option><option value="urgent">مهم / مستعجل</option></select></div>
+          <div style="display:flex;align-items:flex-end"><button class="btn" style="width:100%" type="submit">تسجيل</button></div>
+        </div>
+      </form>
+    </section>
+
+    <section id="adminBox" class="card hidden">
+      <h3 style="margin-bottom:10px">🛠️ لوحة المدير</h3>
+      <div class="two">
+        <button class="btn ghost sm" id="usersBtn">👥 إدارة المستخدمين</button>
+        <button class="btn ghost sm" id="castBtn">📣 إرسال إشعار</button>
+      </div>
+    </section>
+
+    <section id="list"></section>
+  </main>
+</div>
+
+<div class="overlay" id="ov">
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const ROLE = { admin: 'المدير العام', purchasing: 'مسؤول المشتريات', warehouse: 'مسؤول المخزن' };
+const ST = { pending: 'بانتظار الشراء', purchased: 'تم الشراء', completed: 'مستلمة' };
+const S = { token: localStorage.getItem('mst') || '', user: null, items: [], users: [], filter: 'all' };
+
+function toast(msg, kind = '') {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast on ' + kind;
+  clearTimeout(t._t);
+  t._t = setTimeout(() => (t.className = 'toast'), 2800);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: {
+      'content-type': 'application/json',
+      ...(S.token ? { authorization: 'Bearer ' + S.token } : {}),
+      ...(opts.headers || {})
+    }
+  });
+  let data = {};
+  try { data = await res.json(); } catch {}
+  if (!res.ok) {
+    if (res.status === 401 && path !== '/api/login') logout();
+    throw new Error(data.error || 'خطأ ' + res.status);
+  }
+  return data;
+}
+
+function logout() {
+  localStorage.removeItem('mst');
+  S.token = ''; S.user = null;
+  $('#app').classList.add('hidden');
+  $('#login').classList.remove('hidden');
+}
+
+function showApp() {
+  $('#login').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  $('#whoami').textContent = S.user ? `${S.user.name} · ${ROLE[S.user.role] || S.user.role}` : '';
+  $('#newBox').classList.toggle('hidden', !['warehouse', 'admin'].includes(S.user.role));
+  $('#adminBox').classList.toggle('hidden', S.user.role !== 'admin');
+  refresh();
+}
+
+async function refresh() {
+  try {
+    const [items, users, notifs, stats] = await Promise.all([
+      api('/api/items'),
+      api('/api/users'),
+      api('/api/notifications'),
+      api('/api/stats')
+    ]);
+    S.items = items.items; S.users = users.users; S.notifs = notifs.notifications || [];
+    $('#cPending').textContent = stats.counts.pending || 0;
+    $('#cPurchased').textContent = stats.counts.purchased || 0;
+    $('#cCompleted').textContent = stats.counts.completed || 0;
+    const b = $('#bellBadge');
+    b.textContent = S.notifs.length;
+    b.classList.toggle('hidden', S.notifs.length === 0);
+    renderList();
+  } catch (e) { toast(e.message, 'bad'); }
+}
+
+const nameOf = (id) => (S.users.find((u) => u.id === id) || {}).name || '—';
+const ago = (ts) => {
+  if (!ts) return '';
+  const d = (Date.now() - new Date(String(ts).replace(' ', 'T') + 'Z').getTime()) / 1000;
+  if (d < 60) return 'الآن';
+  if (d < 3600) return `قبل ${Math.floor(d / 60)} دقيقة`;
+  if (d < 86400) return `قبل ${Math.floor(d / 3600)} ساعة`;
+  return `قبل ${Math.floor(d / 86400)} يوم`;
+};
+
+function renderList() {
+  const rows = S.items.filter((i) => S.filter === 'all' || i.status === S.filter);
+  const box = $('#list');
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty"><div>📭</div>ماكو عناصر</div>`;
+    return;
+  }
+  box.innerHTML = rows.map((i) => {
+    const acts = [];
+    if (['purchasing', 'admin'].includes(S.user.role) && i.status === 'pending') {
+      acts.push(`<button class="btn sm" data-buy="${i.id}">🛒 تسجيل الشراء</button>`);
+    }
+    if (['warehouse', 'admin'].includes(S.user.role) && i.status === 'purchased') {
+      acts.push(`<button class="btn sm" data-recv="${i.id}">📥 تأكيد الاستلام</button>`);
+    }
+    if (['warehouse', 'admin'].includes(S.user.role) && i.status === 'completed') {
+      acts.push(`<button class="btn ghost sm" data-reorder="${i.id}">🔄 إعادة طلب</button>`);
+    }
+    if (S.user.role === 'admin') {
+      acts.push(`<button class="btn ghost sm bad" data-del="${i.id}">🗑️</button>`);
+    }
+    const bits = [];
+    if (i.quantity_purchased) bits.push(`مشترى: ${i.quantity_purchased} ${i.unit || ''}`);
+    if (i.received_quantity) bits.push(`مستلم: ${i.received_quantity} ${i.unit || ''}`);
+    if (i.price) bits.push(`السعر: ${i.price}`);
+    if (i.supplier) bits.push(`المورّد: ${i.supplier}`);
+    return `<div class="card ${i.priority === 'urgent' ? 'urgent' : ''}">
+      <h3>${esc(i.name)} <span class="qty">${i.quantity} ${esc(i.unit || '')}</span>
+        <span class="pill ${i.status}">${ST[i.status] || i.status}</span>
+        ${i.priority === 'urgent' ? '<span class="pill pending">⚡ مستعجل</span>' : ''}</h3>
+      ${i.missing_reason ? `<p class="meta">📝 ${esc(i.missing_reason)}</p>` : ''}
+      ${i.inventory_notes ? `<p class="meta">🏷 ${esc(i.inventory_notes)}</p>` : ''}
+      <p class="meta">📤 ${nameOf(i.created_by)} · ${ago(i.created_at)}</p>
+      ${bits.length ? `<p class="meta">${bits.map(esc).join(' · ')}</p>` : ''}
+      <div class="acts">${acts.join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function sheet(title, html, onMount) {
+  $('#sheet').innerHTML = `<h3>${esc(title)}</h3>${html}`;
+  $('#ov').classList.add('on');
+  onMount && onMount($('#sheet'));
+}
+const closeSheet = () => $('#ov').classList.remove('on');
+$('#ov').addEventListener('click', (e) => { if (e.target.id === 'ov') closeSheet(); });
+
+$('#loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const d = await api('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ username: $('#lgUser').value, password: $('#lgPass').value })
+    });
+    S.token = d.token; S.user = d.user;
+    localStorage.setItem('mst', d.token);
+    showApp();
+    toast(`أهلاً ${d.user.name}`, 'ok');
+  } catch (err) { toast(err.message, 'bad'); }
+});
+
+$('#outBtn').addEventListener('click', logout);
+
+$('#tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('.tab');
+  if (!b) return;
+  S.filter = b.dataset.f;
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t === b));
+  renderList();
+});
+
+$('#newForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await api('/api/items', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: $('#nName').value,
+        quantity: $('#nQty').value,
+        unit: $('#nUnit').value,
+        missing_reason: $('#nReason').value,
+        priority: $('#nPriority').value
+      })
+    });
+    e.target.reset();
+    $('#nQty').value = 1; $('#nUnit').value = 'قطعة';
+    toast('تم تسجيل النقص وإشعار المشتريات', 'ok');
+    refresh();
+  } catch (err) { toast(err.message, 'bad'); }
+});
+
+$('#list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const d = btn.dataset;
+  const item = S.items.find((i) => i.id === (d.buy || d.recv || d.reorder || d.del));
+  if (!item) return;
+
+  if (d.del) {
+    if (!confirm(`حذف "${item.name}" نهائياً؟`)) return;
+    try { await api('/api/items/' + item.id, { method: 'DELETE' }); toast('تم الحذف', 'ok'); refresh(); }
+    catch (err) { toast(err.message, 'bad'); }
+    return;
+  }
+
+  if (d.buy) {
+    sheet('تسجيل شراء — ' + item.name, `
+      <form id="f1">
+        <div class="two">
+          <div><label>الكمية المشتراة</label><input id="q" type="number" step="any" min="0" value="${item.quantity}"></div>
+          <div><label>السعر</label><input id="pr" type="number" step="any" min="0" value="0"></div>
+        </div>
+        <div style="margin-top:10px"><label>المورّد</label><input id="su" placeholder="اسم المورّد"></div>
+        <div class="acts"><button class="btn" type="submit">حفظ وإشعار المخزن</button>
+        <button class="btn ghost" type="button" data-c>إلغاء</button></div>
+      </form>`, (root) => {
+      root.querySelector('[data-c]').onclick = closeSheet;
+      root.querySelector('form').onsubmit = async (ev) => {
+        ev.preventDefault();
+        try {
+          await api('/api/items/' + item.id, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              status: 'purchased',
+              quantity_purchased: root.querySelector('#q').value,
+              price: root.querySelector('#pr').value,
+              supplier: root.querySelector('#su').value
+            })
+          });
+          closeSheet(); toast('تم تسجيل الشراء', 'ok'); refresh();
+        } catch (err) { toast(err.message, 'bad'); }
+      };
+    });
+  }
+
+  if (d.recv) {
+    sheet('تأكيد الاستلام — ' + item.name, `
+      <form id="f2">
+        <div><label>الكمية المستلمة فعلياً</label><input id="rq" type="number" step="any" min="0" value="${item.quantity_purchased || item.quantity}"></div>
+        <div style="margin-top:10px"><label>ملاحظات المخزن</label><textarea id="in" rows="2"></textarea></div>
+        <div class="acts"><button class="btn" type="submit">تأكيد الاستلام</button>
+        <button class="btn ghost" type="button" data-c>إلغاء</button></div>
+      </form>`, (root) => {
+      root.querySelector('[data-c]').onclick = closeSheet;
+      root.querySelector('form').onsubmit = async (ev) => {
+        ev.preventDefault();
+        try {
+          await api('/api/items/' + item.id, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              status: 'completed',
+              received_quantity: root.querySelector('#rq').value,
+              inventory_notes: root.querySelector('#in').value
+            })
+          });
+          closeSheet(); toast('تم الاستلام', 'ok'); refresh();
+        } catch (err) { toast(err.message, 'bad'); }
+      };
+    });
+  }
+
+  if (d.reorder) {
+    sheet('إعادة طلب — ' + item.name, `
+      <form id="f3">
+        <div><label>سبب إعادة الطلب</label><textarea id="mr" rows="2" placeholder="مثال: الكمية ما كفت"></textarea></div>
+        <div class="acts"><button class="btn amber" type="submit">إرسال للمشتريات</button>
+        <button class="btn ghost" type="button" data-c>إلغاء</button></div>
+      </form>`, (root) => {
+      root.querySelector('[data-c]').onclick = closeSheet;
+      root.querySelector('form').onsubmit = async (ev) => {
+        ev.preventDefault();
+        try {
+          await api('/api/items/' + item.id, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: 'pending', missing_reason: root.querySelector('#mr').value })
+          });
+          closeSheet(); toast('تم إرسال إعادة الطلب', 'ok'); refresh();
+        } catch (err) { toast(err.message, 'bad'); }
+      };
+    });
+  }
+});
+
+$('#bellBtn').addEventListener('click', () => {
+  sheet('الإشعارات', S.notifs.length
+    ? S.notifs.map((n) => `<div class="notif"><div class="dot"></div><div><div>${esc(n.title)}</div>
+        ${n.body ? `<div class="who">${esc(n.body)}</div>` : ''}<small>${ago(n.created_at)}</small></div></div>`).join('')
+    : '<div class="empty">ماكو إشعارات</div>');
+});
+
+$('#usersBtn').addEventListener('click', () => {
+  sheet('المستخدمون', `
+    <form id="f4" style="border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:8px">
+      <div class="two">
+        <div><label>الاسم</label><input id="un" required></div>
+        <div><label>اسم المستخدم</label><input id="uu" required></div>
+      </div>
+      <div class="two" style="margin-top:10px">
+        <div><label>كلمة المرور</label><input id="up" type="text" required></div>
+        <div><label>الدور</label><select id="ur">
+          <option value="warehouse">مسؤول المخزن</option>
+          <option value="purchasing">مسؤول المشتريات</option>
+          <option value="admin">المدير العام</option>
+        </select></div>
+      </div>
+      <div class="acts"><button class="btn" type="submit">إضافة</button>
+      <button class="btn ghost" type="button" data-c>إغلاق</button></div>
+    </form>
+    ${S.users.map((u) => `<div class="notif"><div style="flex:1"><div>${esc(u.name)}
+      <span class="who">@${esc(u.username)}</span></div>
+      <small>${ROLE[u.role] || u.role}</small></div>
+      ${u.id !== S.user.id ? `<button class="btn ghost sm bad" data-du="${u.id}">حذف</button>` : ''}</div>`).join('')}`,
+    (root) => {
+    root.querySelector('[data-c]').onclick = closeSheet;
+    root.querySelector('form').onsubmit = async (ev) => {
+      ev.preventDefault();
+      try {
+        await api('/api/users', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: root.querySelector('#un').value,
+            username: root.querySelector('#uu').value,
+            password: root.querySelector('#up').value,
+            role: root.querySelector('#ur').value
+          })
+        });
+        closeSheet(); toast('تمت الإضافة', 'ok'); refresh();
+      } catch (err) { toast(err.message, 'bad'); }
+    };
+    root.querySelectorAll('[data-du]').forEach((b) => (b.onclick = async () => {
+      if (!confirm('حذف هذا المستخدم؟')) return;
+      try { await api('/api/users/' + b.dataset.du, { method: 'DELETE' }); closeSheet(); toast('تم الحذف', 'ok'); refresh(); }
+      catch (err) { toast(err.message, 'bad'); }
+    }));
+  });
+});
+
+$('#castBtn').addEventListener('click', () => {
+  sheet('إرسال إشعار', `
+    <form id="f5">
+      <div><label>العنوان</label><input id="cn" required></div>
+      <div style="margin-top:10px"><label>النص</label><textarea id="cb" rows="2"></textarea></div>
+      <div style="margin-top:10px"><label>المستهدف</label><select id="ct">
+        <option value="all">الجميع</option>
+        <option value="purchasing">المشتريات</option>
+        <option value="warehouse">المخزن</option>
+      </select></div>
+      <div class="acts"><button class="btn" type="submit">إرسال</button>
+      <button class="btn ghost" type="button" data-c>إلغاء</button></div>
+    </form>`, (root) => {
+    root.querySelector('[data-c]').onclick = closeSheet;
+    root.querySelector('form').onsubmit = async (ev) => {
+      ev.preventDefault();
+      try {
+        await api('/api/notifications', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: root.querySelector('#cn').value,
+            body: root.querySelector('#cb').value,
+            target_role: root.querySelector('#ct').value
+          })
+        });
+        closeSheet(); toast('تم الإرسال', 'ok');
+      } catch (err) { toast(err.message, 'bad'); }
+    };
+  });
+});
+
+(async function boot() {
+  if (!S.token) return $('#login').classList.remove('hidden');
+  try {
+    const d = await api('/api/me');
+    S.user = d.user;
+    showApp();
+  } catch { logout(); }
+})();
+
+setInterval(() => { if (S.user) refresh(); }, 45000);
+</script>
+</body>
+</html>

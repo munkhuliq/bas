@@ -1,0 +1,11 @@
+.mcp.json
+.claude/
+.wrangler/
+shortages/
+testsprite_tests/
+supabase-setup.sql
+supabase-function-admin.ts
+wrangler.toml
+.assetsignore
+*.md
+*.log

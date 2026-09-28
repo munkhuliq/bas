@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>نظام بصمة الحضور</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Cairo:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#0c1f26;--deep:#0e3a40;--teal:#127a6e;--teal-soft:#e4f3f0;
+    --amber:#d98324;--bg:#f6f4ee;--card:#ffffff;--line:#e3ded3;--muted:#6c7a76;
+    --ok:#1f9d6b;--bad:#c9483c;--shadow:0 8px 28px rgba(14,58,64,.08);--radius:18px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.7;font-size:15px;overflow-x:hidden}
+  h1,h2,h3,.display{font-family:'Cairo','IBM Plex Sans Arabic',sans-serif}
+  button{font-family:inherit;cursor:pointer;border:none}
+  input,select{font-family:inherit}
+  .wrap{max-width:520px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;padding-bottom:84px}
+  .topbar{background:linear-gradient(135deg,var(--deep),var(--teal));color:#fff;padding:20px 20px 26px;position:relative;overflow:hidden}
+  .topbar::after{content:"";position:absolute;left:-40px;top:-60px;width:180px;height:180px;background:radial-gradient(circle,rgba(217,131,36,.35),transparent 70%)}
+  .topbar .row{display:flex;justify-content:space-between;align-items:center;position:relative;z-index:1}
+  .brand{display:flex;align-items:center;gap:10px;font-family:'Cairo';font-weight:800;font-size:18px}
+  .brand .dot{width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.16);display:grid;place-items:center;font-size:18px}
+  .who{font-size:13px;opacity:.85;margin-top:2px}
+  .logout{background:rgba(255,255,255,.14);color:#fff;border-radius:10px;padding:7px 12px;font-size:13px;font-weight:600}
+  .content{padding:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+  .card h3{margin:0 0 12px;font-size:16px;display:flex;align-items:center;gap:8px}
+  label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px;font-weight:600}
+  .field{margin-bottom:14px}
+  input,select{width:100%;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;background:#fbfaf6;font-size:15px;color:var(--ink);transition:.15s}
+  input:focus,select:focus{outline:none;border-color:var(--teal);background:#fff}
+  .btn{width:100%;padding:15px;border-radius:14px;font-weight:700;font-size:16px;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;transition:.15s}
+  .btn:active{transform:scale(.98)}
+  .btn.ghost{background:var(--teal-soft);color:var(--deep)}
+  .btn.amber{background:var(--amber)}
+  .btn.danger{background:var(--bad)}
+  .btn:disabled{opacity:.5}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .stat .n{font-family:'Cairo';font-weight:800;font-size:26px;color:var(--deep);line-height:1.1}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:4px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px}
+  .pill.in{background:#e3f6ec;color:var(--ok)}
+  .pill.out{background:#fdeceb;color:var(--bad)}
+  .gpsbox{border-radius:14px;padding:14px;font-size:13px;margin-bottom:14px;border:1.5px dashed var(--line)}
+  .gpsbox.ok{border-color:var(--ok);background:#f0faf4}
+  .gpsbox.bad{border-color:var(--bad);background:#fdf1f0}
+  .gpsbox .big{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .tbl th{text-align:right;color:var(--muted);font-weight:600;padding:8px 6px;border-bottom:2px solid var(--line);font-size:12px}
+  .tbl td{padding:9px 6px;border-bottom:1px solid var(--line)}
+  .tbl tr:last-child td{border-bottom:none}
+  .empty{text-align:center;color:var(--muted);padding:24px 10px;font-size:14px}
+  .tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:8px 4px env(safe-area-inset-bottom);z-index:30}
+  .tabbar button{background:none;color:var(--muted);font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 14px;border-radius:12px}
+  .tabbar button .ic{font-size:20px}
+  .tabbar button.active{color:var(--teal)}
+  .view{display:none}
+  .view.active{display:block}
+  .auth{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:28px 22px}
+  .auth .logo{text-align:center;margin-bottom:26px}
+  .auth .logo .mark{width:72px;height:72px;border-radius:22px;background:linear-gradient(135deg,var(--deep),var(--teal));display:grid;place-items:center;font-size:34px;margin:0 auto 14px;box-shadow:var(--shadow)}
+  .auth .logo h1{margin:0;font-size:24px;color:var(--deep)}
+  .auth .logo p{margin:4px 0 0;color:var(--muted);font-size:14px}
+  .seg{display:flex;background:#ece7db;border-radius:14px;padding:4px;margin-bottom:20px}
+  .seg button{flex:1;padding:11px;border-radius:11px;background:none;font-weight:700;font-size:14px;color:var(--muted)}
+  .seg button.active{background:#fff;color:var(--deep);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .note{font-size:12px;color:var(--muted);margin-top:10px;text-align:center;line-height:1.6}
+  .toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:14px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.3s;z-index:100;max-width:90%;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.bad{background:var(--bad)}
+  .toast.ok{background:var(--ok)}
+  .listitem{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+  .listitem:last-child{border-bottom:none}
+  .listitem .nm{font-weight:700}
+  .listitem .sub{font-size:12px;color:var(--muted)}
+  .mini{font-size:12px;color:var(--teal);font-weight:700;background:var(--teal-soft);border-radius:8px;padding:5px 10px}
+  .mini.del{color:var(--bad);background:#fdeceb}
+  .hint{font-size:12px;color:var(--muted);margin-top:-6px;margin-bottom:12px}
+  .divider{height:1px;background:var(--line);margin:16px 0}
+  .inline-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .spin{display:inline-block;width:15px;height:15px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .loader{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--muted)}
+  .loader .spin{width:30px;height:30px;border-color:var(--line);border-top-color:var(--teal)}
+  .syncdot{position:fixed;top:10px;left:10px;z-index:60;font-size:11px;background:rgba(18,122,110,.9);color:#fff;padding:4px 10px;border-radius:999px;opacity:0;transition:.3s}
+  .syncdot.show{opacity:1}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="syncDot" class="syncdot">⟳ مزامنة…</div>
+
+<!-- شاشة تحميل -->
+<div id="bootScreen" class="loader">
+  <div class="spin"></div>
+  <div>جارٍ الاتصال بالخادم…</div>
+</div>
+
+<!-- ====== شاشة الدخول ====== -->
+<div id="authScreen" class="wrap" style="display:none">
+  <div class="auth">
+    <div class="logo">
+      <div class="mark" id="authLogo">📍</div>
+      <h1 id="authName">بصمة الحضور</h1>
+      <p>تسجيل الحضور والانصراف عبر الموقع الجغرافي</p>
+    </div>
+    <div class="seg" style="display:none">
+      <button id="segLogin" class="active" onclick="switchAuth('login')">دخول</button>
+      <button id="segReg" onclick="switchAuth('reg')">حساب جديد</button>
+    </div>
+    <div id="loginForm">
+      <div class="field"><label>اسم المستخدم</label><input id="lUser" placeholder="أدخل اسم المستخدم" autocomplete="username"></div>
+      <div class="field"><label>كلمة المرور</label><input id="lPass" type="password" placeholder="••••••" autocomplete="current-password"></div>
+      <button class="btn" id="loginBtn" onclick="doLogin()">تسجيل الدخول</button>
+    </div>
+    <div id="regForm" style="display:none">
+      <div class="field"><label>الاسم الكامل</label><input id="rName" placeholder="مثال: أحمد محمد"></div>
+      <div class="field"><label>اسم المستخدم</label><input id="rUser" placeholder="اسم فريد لتسجيل الدخول"></div>
+      <div class="field"><label>كلمة المرور</label><input id="rPass" type="password" placeholder="6 أحرف على الأقل"></div>
+      <button class="btn" id="regBtn" onclick="doRegister()">إنشاء حساب موظف</button>
+      <p class="note">سيتم إنشاء الحساب كموظف. المدير يديره من لوحته.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ====== واجهة الموظف ====== -->
+<div id="empApp" class="wrap" style="display:none">
+  <div class="topbar"><div class="row">
+    <div><div class="brand"><span class="dot" id="empLogo">📍</span><span id="empBrand">بصمة الحضور</span></div><div class="who" id="empWho">—</div></div>
+    <button class="logout" onclick="logout()">خروج</button>
+  </div></div>
+  <div class="content">
+    <div id="empHome" class="view active">
+      <div class="card">
+        <h3>📌 الحالة الآن</h3>
+        <div id="empStatus" style="margin-bottom:14px"></div>
+        <div id="gpsStatus" class="gpsbox"><div class="big">📡 جارٍ تحديد الموقع…</div><div class="muted">يرجى السماح للمتصفح بالوصول للموقع.</div></div>
+        <button id="punchBtn" class="btn" onclick="doPunch()" disabled><span class="spin"></span> تحديد الموقع…</button>
+        <button class="btn ghost" style="margin-top:10px" onclick="refreshGPS()">🔄 تحديث الموقع</button>
+      </div>
+      <div class="stat-grid">
+        <div class="stat"><div class="n" id="sToday">0:00</div><div class="l">ساعات اليوم</div></div>
+        <div class="stat"><div class="n" id="sMonth">0:00</div><div class="l">إجمالي الشهر</div></div>
+      </div>
+      <div class="stat-grid" style="margin-top:12px">
+        <div class="stat"><div class="n" id="sDays">0</div><div class="l">أيام الحضور</div></div>
+        <div class="stat"><div class="n" id="sPay">0</div><div class="l">صافي الراتب</div></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>💰 تفصيل راتبي هذا الشهر</h3>
+        <div id="empPayDetail"></div>
+      </div>
+    </div>
+    <div id="empLog" class="view">
+      <div class="card">
+        <h3>🗓️ سجل الحضور</h3>
+        <div class="field" style="margin-bottom:10px"><select id="empMonthSel" onchange="renderEmpLog()"></select></div>
+        <div id="empLogTable"></div>
+      </div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <button id="tabHome" class="active" onclick="empTab('Home')"><span class="ic">🏠</span>الرئيسية</button>
+    <button id="tabLog" onclick="empTab('Log')"><span class="ic">🗓️</span>السجل</button>
+  </div>
+</div>
+
+<!-- ====== واجهة المدير ====== -->
+<div id="adminApp" class="wrap" style="display:none">
+  <div class="topbar"><div class="row">
+    <div><div class="brand"><span class="dot">🛠️</span><span>لوحة المدير</span></div><div class="who" id="admWho">—</div></div>
+    <button class="logout" onclick="logout()">خروج</button>
+  </div></div>
+  <div class="content">
+    <div id="admOverview" class="view active">
+      <div class="stat-grid">
+        <div class="stat"><div class="n" id="adEmp">0</div><div class="l">عدد الموظفين</div></div>
+        <div class="stat"><div class="n" id="adIn">0</div><div class="l">متواجد الآن</div></div>
+      </div>
+      <div class="card" style="margin-top:16px"><h3>👥 الموظفون المتواجدون</h3><div id="presentList"></div></div>
+    </div>
+    <div id="admGeo" class="view">
+      <div class="card">
+        <h3>📍 نطاق الحضور الجغرافي</h3>
+        <p class="hint">حدد مركز موقع العمل ونصف القطر المسموح. لن يتمكن أي موظف من تسجيل الحضور خارج هذا النطاق.</p>
+        <div class="inline-2">
+          <div class="field"><label>خط العرض (Lat)</label><input id="gLat" type="number" step="any" placeholder="24.7136"></div>
+          <div class="field"><label>خط الطول (Lng)</label><input id="gLng" type="number" step="any" placeholder="46.6753"></div>
+        </div>
+        <div class="field"><label>نصف القطر المسموح (متر)</label><input id="gRad" type="number" placeholder="150"></div>
+        <button class="btn ghost" onclick="useMyLocation()">📡 استخدام موقعي الحالي كمركز</button>
+        <div class="divider"></div>
+        <button class="btn" id="saveGeoBtn" onclick="saveGeo()">حفظ النطاق</button>
+        <div id="geoSaved" class="hint" style="margin-top:10px"></div>
+      </div>
+      <div class="card">
+        <h3>🎨 هوية البرنامج</h3>
+        <p class="hint">غيّر اسم البرنامج وشعاره. يظهران لكل المستخدمين على جميع الأجهزة.</p>
+        <div class="field"><label>اسم البرنامج</label><input id="brandName" placeholder="مثال: شركة المنخل"></div>
+        <div class="field"><label>شعار البرنامج (صورة)</label>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+            <div id="brandPreview" style="width:60px;height:60px;border-radius:14px;background:var(--teal-soft);display:grid;place-items:center;font-size:28px;overflow:hidden;border:1px solid var(--line)">📍</div>
+            <input type="file" id="brandFile" accept="image/*" onchange="previewLogo(event)" style="font-size:13px">
+          </div>
+          <p class="hint">يُفضّل صورة مربعة. ستُضغط تلقائياً.</p>
+        </div>
+        <button class="btn" id="saveBrandBtn" onclick="saveBranding()">حفظ الهوية</button>
+        <div id="brandSaved" class="hint" style="margin-top:10px"></div>
+      </div>
+    </div>
+    <div id="admEmps" class="view">
+      <div class="card">
+        <h3>👤 حسابي (المدير)</h3>
+        <p class="hint">غيّر اسم المستخدم أو كلمة المرور الخاصة بك.</p>
+        <div class="field"><label>اسم المستخدم</label><input id="adminUser" placeholder="اسم دخول المدير"></div>
+        <div class="field"><label>كلمة المرور الجديدة (اتركها فارغة لعدم التغيير)</label><input id="adminPass" type="password" placeholder="••••••"></div>
+        <button class="btn" onclick="saveAdminCreds()">حفظ بياناتي</button>
+      </div>
+      <div class="card">
+        <h3>➕ إضافة موظف جديد</h3>
+        <p class="hint">أنشئ حساب موظف مباشرةً وسلّمه اسم المستخدم وكلمة المرور.</p>
+        <div class="field"><label>الاسم الكامل</label><input id="newName" placeholder="مثال: أحمد محمد"></div>
+        <div class="inline-2">
+          <div class="field"><label>اسم المستخدم</label><input id="newUser" placeholder="اسم فريد للدخول"></div>
+          <div class="field"><label>كلمة المرور</label><input id="newPass" type="password" placeholder="6 أحرف"></div>
+        </div>
+        <div class="field"><label>نوع الراتب</label>
+          <select id="newPayType" onchange="togglePayFields('new')">
+            <option value="hourly">بالساعة</option>
+            <option value="fixed">راتب شهري قطعي</option>
+          </select>
+        </div>
+        <div id="newHourly">
+          <div class="field"><label>سعر الساعة (د.ع)</label><input id="newRate" type="number" placeholder="افتراضي النظام"></div>
+        </div>
+        <div id="newFixed" style="display:none">
+          <div class="inline-2">
+            <div class="field"><label>الراتب الشهري (د.ع)</label><input id="newSalary" type="number" placeholder="مثال: 600000"></div>
+            <div class="field"><label>خصم ساعة النقص (د.ع)</label><input id="newLate" type="number" placeholder="مثال: 3000"></div>
+          </div>
+        </div>
+        <div class="field"><label>ساعات الدوام اليومي المطلوبة</label><input id="newDaily" type="number" step="any" value="8"></div>
+        <button class="btn" id="addEmpBtn" onclick="adminAddEmp()">إنشاء حساب الموظف</button>
+      </div>
+      <div class="card">
+        <h3>👥 إدارة الموظفين</h3>
+        <p class="hint">اضغط على أي موظف لتعديل نوع راتبه وبياناته. السعر الافتراضي يُطبّق على موظفي الساعة بلا سعر خاص.</p>
+        <div class="field"><label>سعر الساعة الافتراضي (د.ع)</label><input id="defRate" type="number" placeholder="20000" onchange="saveDefRate()"></div>
+        <div class="divider"></div>
+        <div id="empMgmtList"></div>
+      </div>
+    </div>
+    <div id="admManage" class="view">
+      <div class="card">
+        <h3>🛠️ تحكم يدوي بالحضور</h3>
+        <p class="hint">أضف بصمة منسية أو عدّل أوقات الدخول والخروج لموظف.</p>
+        <div class="field"><label>الموظف</label><select id="mgEmp"></select></div>
+        <div class="field"><label>التاريخ</label><input id="mgDate" type="date"></div>
+        <div class="inline-2">
+          <div class="field"><label>وقت الدخول</label><input id="mgIn" type="time"></div>
+          <div class="field"><label>وقت الخروج</label><input id="mgOut" type="time"></div>
+        </div>
+        <p class="hint">اترك أحد الحقلين فارغاً لتسجيل دخول فقط أو خروج فقط.</p>
+        <button class="btn" id="mgAddBtn" onclick="manualAddPunch()">➕ إضافة بصمة يدوية</button>
+        <div class="divider"></div>
+        <h3 style="font-size:15px">🗓️ بصمات الموظف في يوم</h3>
+        <p class="hint">اختر الموظف والتاريخ أعلاه ثم اعرض لتعديل أو حذف بصماته.</p>
+        <button class="btn ghost" onclick="loadDayPunches()">عرض بصمات اليوم المحدد</button>
+        <div id="dayPunches" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <h3>➖ خصم / عقوبة</h3>
+        <p class="hint">سجّل خصماً يدوياً يُطرح من راتب الموظف في شهره.</p>
+        <div class="field"><label>الموظف</label><select id="dedEmp"></select></div>
+        <div class="inline-2">
+          <div class="field"><label>التاريخ</label><input id="dedDate" type="date"></div>
+          <div class="field"><label>المبلغ (د.ع)</label><input id="dedAmount" type="number" placeholder="مثال: 10000"></div>
+        </div>
+        <div class="field"><label>السبب</label><input id="dedReason" placeholder="مثال: تأخر متكرر"></div>
+        <button class="btn danger" id="dedAddBtn" onclick="addDeduction()">إضافة الخصم</button>
+        <div class="divider"></div>
+        <h3 style="font-size:15px">قائمة الخصومات</h3>
+        <div class="field"><label>الشهر</label><select id="dedMonthView" onchange="renderDeductions()"></select></div>
+        <div id="dedList"></div>
+      </div>
+      <div class="card">
+        <h3>➕ مكافأة / حافز</h3>
+        <p class="hint">سجّل مكافأة تُضاف إلى راتب الموظف في شهره.</p>
+        <div class="field"><label>الموظف</label><select id="bonEmp"></select></div>
+        <div class="inline-2">
+          <div class="field"><label>التاريخ</label><input id="bonDate" type="date"></div>
+          <div class="field"><label>المبلغ (د.ع)</label><input id="bonAmount" type="number" placeholder="مثال: 25000"></div>
+        </div>
+        <div class="field"><label>السبب</label><input id="bonReason" placeholder="مثال: أداء متميز"></div>
+        <button class="btn" id="bonAddBtn" onclick="addBonus()">إضافة المكافأة</button>
+        <div class="divider"></div>
+        <h3 style="font-size:15px">قائمة المكافآت</h3>
+        <div class="field"><label>الشهر</label><select id="bonMonthView" onchange="renderBonuses()"></select></div>
+        <div id="bonList"></div>
+      </div>
+      <div class="card">
+        <h3>🌴 الإجازات</h3>
+        <p class="hint">سجّل إجازة ليوم. الإجازة المدفوعة لا تُحسب غياباً ولا تُخصم. غير المدفوعة تُعفى من الغياب لكن قد تُخصم حسب نوع الراتب.</p>
+        <div class="field"><label>الموظف</label><select id="lvEmp"></select></div>
+        <div class="inline-2">
+          <div class="field"><label>التاريخ</label><input id="lvDate" type="date"></div>
+          <div class="field"><label>النوع</label>
+            <select id="lvPaid"><option value="true">براتب</option><option value="false">بدون راتب</option></select>
+          </div>
+        </div>
+        <div class="field"><label>السبب (اختياري)</label><input id="lvReason" placeholder="مثال: إجازة مرضية"></div>
+        <button class="btn" id="lvAddBtn" onclick="addLeave()">➕ تسجيل إجازة</button>
+        <div class="divider"></div>
+        <h3 style="font-size:15px">قائمة الإجازات</h3>
+        <div class="field"><label>الشهر</label><select id="lvMonthView" onchange="renderLeaves()"></select></div>
+        <div id="lvList"></div>
+      </div>
+    </div>
+    <div id="admReports" class="view">
+      <div class="seg" style="margin-bottom:16px">
+        <button id="rsegMonthly" class="active" onclick="repMode('monthly')">📊 شهري</button>
+        <button id="rsegDaily" onclick="repMode('daily')">📅 يومي</button>
+        <button id="rsegPayroll" onclick="repMode('payroll')">💰 الرواتب</button>
+      </div>
+      <div id="repMonthlyWrap" class="card">
+        <h3>📊 تقرير شهري مفصّل</h3>
+        <div class="inline-2">
+          <div class="field"><label>الموظف</label><select id="repEmp" onchange="renderReport()"></select></div>
+          <div class="field"><label>الشهر</label><select id="repMonth" onchange="renderReport()"></select></div>
+        </div>
+        <div id="reportArea"></div>
+      </div>
+      <div id="repDailyWrap" class="card" style="display:none">
+        <h3>📅 تقرير يومي لكل الموظفين</h3>
+        <div class="field"><label>التاريخ</label><input id="repDay" type="date" onchange="renderDailyReport()"></div>
+        <div id="dailyArea"></div>
+      </div>
+      <div id="repPayrollWrap" class="card" style="display:none">
+        <h3>💰 كشف رواتب كل الموظفين</h3>
+        <div class="field"><label>الشهر</label><select id="payMonth" onchange="renderPayroll()"></select></div>
+        <div id="payrollArea"></div>
+      </div>
+    </div>
+  </div>
+  <div class="tabbar">
+    <button id="atabOverview" class="active" onclick="admTab('Overview')"><span class="ic">📈</span>نظرة</button>
+    <button id="atabGeo" onclick="admTab('Geo')"><span class="ic">📍</span>الموقع</button>
+    <button id="atabEmps" onclick="admTab('Emps')"><span class="ic">👥</span>الموظفون</button>
+    <button id="atabManage" onclick="admTab('Manage')"><span class="ic">🛠️</span>إدارة</button>
+    <button id="atabReports" onclick="admTab('Reports')"><span class="ic">📊</span>تقارير</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* ===================== إعدادات Supabase ===================== */
+const SUPABASE_URL = 'https://wbqacpzgchoqqrdofgoo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_kGt9c-_VrgxAY839a6RqCw_BFRaqFDc';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+/* اسم المستخدم يُربط بمصادقة Supabase عبر بريد وهمي ثابت — لا يحتاج بريداً حقيقياً */
+const EMAIL_DOMAIN = '@basma.local';
+const userEmail = u => String(u).toLowerCase()+EMAIL_DOMAIN;
+const ADMIN_FN = SUPABASE_URL + '/functions/v1/admin';   // دالة الإدارة (service role) لإنشاء/حذف/تعديل حسابات الموظفين
+/* استدعاء دالة الإدارة المحمية بهوية المدير الحالي */
+async function callAdmin(action, payload){
+  const {data:{session:as}}=await sb.auth.getSession();
+  const res=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json',
+    'Authorization':'Bearer '+(as&&as.access_token||''),'apikey':SUPABASE_KEY},
+    body:JSON.stringify({action,...payload})});
+  let j={}; try{ j=await res.json(); }catch(e){}
+  if(!res.ok) throw new Error(j.error||('HTTP '+res.status));
+  return j;
+}
+
+/* ===================== الحالة ===================== */
+let DB={ users:[], logs:[], deductions:[], bonuses:[], leaves:[], settings:{geo_lat:null,geo_lng:null,geo_rad:null,default_rate:20,app_name:'بصمة الحضور',app_logo:'📍'} };
+let session=null;     // {user, role}
+let curPos=null;      // {lat,lng,acc}
+let inRange=false;
+
+const $=id=>document.getElementById(id);
+/* تهريب أي نص قادم من المستخدم قبل حقنه في innerHTML — يحمي من XSS المخزّن */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* اسم مستخدم آمن: أحرف إنجليزية صغيرة وأرقام و _ فقط (يمنع كسر onclick وحقن النصوص) */
+function validUser(u){ return /^[a-z0-9_]{3,20}$/.test(u); }
+function toast(msg,type=''){ const t=$('toast'); t.textContent=msg; t.className='toast show '+type; setTimeout(()=>t.className='toast',2400); }
+function syncShow(on){ $('syncDot').className='syncdot'+(on?' show':''); }
+function pad(n){return String(n).padStart(2,'0');}
+function fmtHM(mins){ mins=Math.max(0,Math.round(mins)); return Math.floor(mins/60)+':'+pad(mins%60); }
+function outDisplay(l){
+  if(!l.out) return null;
+  const i=new Date(l.in), o=new Date(l.out);
+  const nextDay=(o.getDate()!==i.getDate()||o.getMonth()!==i.getMonth());
+  return pad(o.getHours())+':'+pad(o.getMinutes())+(nextDay?' <span style="color:var(--amber);font-size:11px">+1ي</span>':'');
+}
+function todayKey(d=new Date()){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function monthKey(d=new Date()){ return d.getFullYear()+'-'+pad(d.getMonth()+1); }
+function monthLabel(mk){ const [y,m]=mk.split('-'); const names=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر']; return names[+m-1]+' '+y; }
+function distM(lat1,lng1,lat2,lng2){ const R=6371000,toR=x=>x*Math.PI/180; const dLat=toR(lat2-lat1),dLng=toR(lng2-lng1); const a=Math.sin(dLat/2)**2+Math.cos(toR(lat1))*Math.cos(toR(lat2))*Math.sin(dLng/2)**2; return 2*R*Math.asin(Math.sqrt(a)); }
+
+/* ===================== جلب البيانات من السحابة ===================== */
+async function fetchProfiles(){
+  const {data,error}=await sb.from('profiles').select('*');
+  if(error){ console.error(error); return; }
+  DB.users=data.map(p=>({id:p.id,user:p.username,name:p.name,role:p.role,rate:p.rate,
+    payType:p.pay_type||'hourly', salary:p.monthly_salary, lateDeduct:p.late_deduct_per_hour,
+    dailyHours:p.daily_hours==null?8:p.daily_hours,
+    workDays:(p.work_days||'0,1,2,3,4,6').split(',').map(Number)}));
+}
+async function fetchLogs(){
+  const {data,error}=await sb.from('attendance').select('*').order('punch_in',{ascending:false});
+  if(error){ console.error(error); return; }
+  DB.logs=data.map(l=>({id:l.id,user:l.username,date:l.work_date,month:l.month,
+    in:l.punch_in,out:l.punch_out,manual:l.manual,
+    inLoc:{lat:l.in_lat,lng:l.in_lng},outLoc:l.out_lat?{lat:l.out_lat,lng:l.out_lng}:null}));
+}
+async function fetchSettings(){
+  const {data,error}=await sb.from('settings').select('*').eq('id',1).single();
+  if(error){ console.error(error); return; }
+  if(data) DB.settings=data;
+  applyBranding();
+}
+function applyBranding(){
+  const name=DB.settings.app_name||'بصمة الحضور';
+  const logo=DB.settings.app_logo||'📍';
+  // هل الشعار صورة (Base64) أم رمز؟
+  const isImg = typeof logo==='string' && /^data:image\/(png|jpeg|jpg|gif|webp);base64,/.test(logo);
+  const logoHTML = isImg ? `<img src="${logo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(logo);
+  document.title = 'نظام '+name;
+  const set=(id,html)=>{ const el=$(id); if(el) el.innerHTML=html; };
+  const setTxt=(id,txt)=>{ const el=$(id); if(el) el.textContent=txt; };
+  set('authLogo', logoHTML); setTxt('authName', name);
+  set('empLogo', logoHTML); setTxt('empBrand', name);
+}
+async function fetchDeductions(){
+  const {data,error}=await sb.from('deductions').select('*').order('ded_date',{ascending:false});
+  if(error){ console.error(error); return; }
+  DB.deductions=data.map(d=>({id:d.id,user:d.username,month:d.month,date:d.ded_date,amount:Number(d.amount),reason:d.reason}));
+}
+async function fetchLeaves(){
+  const {data,error}=await sb.from('leaves').select('*').order('leave_date',{ascending:false});
+  if(error){ console.error(error); return; }
+  DB.leaves=data.map(l=>({id:l.id,user:l.username,month:l.month,date:l.leave_date,paid:l.paid,reason:l.reason}));
+}
+async function fetchBonuses(){
+  const {data,error}=await sb.from('bonuses').select('*').order('bonus_date',{ascending:false});
+  if(error){ console.error(error); return; }
+  DB.bonuses=data.map(b=>({id:b.id,user:b.username,month:b.month,date:b.bonus_date,amount:Number(b.amount),reason:b.reason}));
+}
+/* تحميل ملف المستخدم المصادَق عليه وضبط الجلسة */
+async function loadSessionProfile(){
+  const {data:{user:au}}=await sb.auth.getUser();
+  if(!au){ session=null; return; }
+  await fetchProfiles();
+  const me=DB.users.find(u=>u.id===au.id);
+  if(!me){ session=null; return; }
+  session={user:me.user, role:me.role, id:au.id};
+}
+async function reloadAll(){
+  syncShow(true);
+  await Promise.all([fetchProfiles(),fetchLogs(),fetchSettings(),fetchDeductions(),fetchBonuses(),fetchLeaves()]);
+  syncShow(false);
+}
+
+/* ===================== المصادقة ===================== */
+function switchAuth(m){
+  $('segLogin').classList.toggle('active',m==='login');
+  $('segReg').classList.toggle('active',m==='reg');
+  $('loginForm').style.display=m==='login'?'block':'none';
+  $('regForm').style.display=m==='reg'?'block':'none';
+}
+async function doRegister(){
+  const name=$('rName').value.trim(),user=$('rUser').value.trim().toLowerCase(),pass=$('rPass').value;
+  if(!name||!user||!pass) return toast('أكمل جميع الحقول','bad');
+  if(!validUser(user)) return toast('اسم المستخدم: أحرف إنجليزية وأرقام و _ فقط (3–20)','bad');
+  if(pass.length<6) return toast('كلمة المرور 6 أحرف على الأقل','bad');
+  const btn=$('regBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> جارٍ…';
+  // إنشاء حساب المصادقة (كلمة المرور تُخزَّن بأمان في Supabase Auth)
+  const {data,error}=await sb.auth.signUp({email:userEmail(user),password:pass,options:{data:{name,username:user}}});
+  if(error||!data.user){ btn.disabled=false; btn.textContent='إنشاء حساب موظف'; console.error(error);
+    return toast(error&&/registered|exists/i.test(error.message)?'اسم المستخدم مستخدم بالفعل':'تعذّر إنشاء الحساب','bad'); }
+  // إنشاء ملف الموظف المرتبط بالحساب (الدور يُفرض موظفاً عبر سياسات قاعدة البيانات)
+  const {error:pe}=await sb.from('profiles').insert({id:data.user.id,username:user,name,role:'employee'});
+  btn.disabled=false; btn.textContent='إنشاء حساب موظف';
+  if(pe){ console.error(pe); return toast('تعذّر إنشاء ملف الموظف (تحقق من تعطيل تأكيد البريد في Supabase)','bad'); }
+  try{ await sb.auth.signOut(); }catch(e){}   // نعود لشاشة الدخول لدخول نظيف باسم المستخدم
+  toast('تم إنشاء الحساب، يمكنك الدخول','ok');
+  $('rName').value=$('rUser').value=$('rPass').value='';
+  switchAuth('login'); $('lUser').value=user;
+}
+async function doLogin(){
+  const user=$('lUser').value.trim().toLowerCase(),pass=$('lPass').value;
+  if(!user||!pass) return toast('أدخل بيانات الدخول','bad');
+  const btn=$('loginBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> جارٍ…';
+  const {error}=await sb.auth.signInWithPassword({email:userEmail(user),password:pass});
+  if(error){ btn.disabled=false; btn.textContent='تسجيل الدخول'; return toast('بيانات غير صحيحة','bad'); }
+  await loadSessionProfile();
+  btn.disabled=false; btn.textContent='تسجيل الدخول';
+  if(!session){ try{await sb.auth.signOut();}catch(e){} return toast('تعذّر تحميل بيانات الحساب','bad'); }
+  await reloadAll();
+  enterApp();
+}
+async function logout(){ try{ await sb.auth.signOut(); }catch(e){} location.reload(); }
+function currentUser(){ return DB.users.find(u=>u.user===session.user); }
+
+/* ===================== دخول التطبيق ===================== */
+function enterApp(){
+  $('bootScreen').style.display='none';
+  $('authScreen').style.display='none';
+  if(session.role==='admin'){
+    $('adminApp').style.display='block'; $('empApp').style.display='none';
+    $('admWho').textContent='مرحباً، '+currentUser().name;
+    subscribeRealtime(); initAdmin();
+  }else{
+    $('empApp').style.display='block'; $('adminApp').style.display='none';
+    $('empWho').textContent='مرحباً، '+currentUser().name;
+    subscribeRealtime(); initEmp();
+  }
+}
+
+/* ===================== التحديث اللحظي ===================== */
+function subscribeRealtime(){
+  sb.channel('att-live')
+    .on('postgres_changes',{event:'*',schema:'public',table:'attendance'},async()=>{
+      await fetchLogs(); refreshUI();
+    })
+    .on('postgres_changes',{event:'*',schema:'public',table:'profiles'},async()=>{
+      await fetchProfiles(); refreshUI();
+    })
+    .on('postgres_changes',{event:'*',schema:'public',table:'settings'},async()=>{
+      await fetchSettings(); refreshUI();
+    })
+    .on('postgres_changes',{event:'*',schema:'public',table:'deductions'},async()=>{
+      await fetchDeductions(); refreshUI();
+    })
+    .on('postgres_changes',{event:'*',schema:'public',table:'bonuses'},async()=>{
+      await fetchBonuses(); refreshUI();
+    })
+    .on('postgres_changes',{event:'*',schema:'public',table:'leaves'},async()=>{
+      await fetchLeaves(); refreshUI();
+    })
+    .subscribe();
+}
+function refreshUI(){
+  if(!session) return;
+  if(session.role==='admin'){ renderOverview(); renderEmpMgmt(); buildReportSelectors(); renderReport(); if($('admManage').classList.contains('active')) initManage(); }
+  else{ renderEmpStatus(); renderEmpStats(); buildEmpMonths(); renderEmpLog(); if(curPos) evalRange(); }
+}
+
+/* ===================== GPS ===================== */
+function refreshGPS(){
+  $('gpsStatus').className='gpsbox';
+  $('gpsStatus').innerHTML='<div class="big">📡 جارٍ تحديد الموقع…</div><div class="muted">يرجى الانتظار.</div>';
+  const btn=$('punchBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> تحديد الموقع…';
+  if(!navigator.geolocation){ gpsFail('المتصفح لا يدعم تحديد الموقع'); return; }
+  navigator.geolocation.getCurrentPosition(
+    p=>{ curPos={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy}; evalRange(); },
+    e=>{ gpsFail(e.code===1?'تم رفض إذن الموقع. فعّله من إعدادات المتصفح.':'تعذّر تحديد الموقع، حاول مجدداً'); },
+    {enableHighAccuracy:true,timeout:12000,maximumAge:0}
+  );
+}
+function gpsFail(msg){
+  curPos=null; inRange=false;
+  $('gpsStatus').className='gpsbox bad';
+  $('gpsStatus').innerHTML='<div class="big">⚠️ '+msg+'</div>';
+  const btn=$('punchBtn'); btn.disabled=true; btn.textContent='الموقع غير متاح';
+}
+function evalRange(){
+  const g=DB.settings; const btn=$('punchBtn');
+  if(g.geo_lat==null){
+    inRange=false;
+    $('gpsStatus').className='gpsbox bad';
+    $('gpsStatus').innerHTML='<div class="big">⚠️ لم يحدد المدير نطاق الحضور بعد</div><div class="muted">تواصل مع الإدارة.</div>';
+    btn.disabled=true; btn.textContent='النطاق غير محدد'; return;
+  }
+  const d=distM(curPos.lat,curPos.lng,g.geo_lat,g.geo_lng);
+  inRange=d<=g.geo_rad;
+  const open=isOpen();
+  if(inRange){
+    $('gpsStatus').className='gpsbox ok';
+    $('gpsStatus').innerHTML='<div class="big">✅ أنت داخل نطاق العمل</div><div class="muted">تبعد '+Math.round(d)+' م عن المركز · دقة ±'+Math.round(curPos.acc)+' م</div>';
+    btn.disabled=false;
+  }else{
+    $('gpsStatus').className='gpsbox bad';
+    $('gpsStatus').innerHTML='<div class="big">🚫 خارج نطاق العمل</div><div class="muted">تبعد '+Math.round(d)+' م (المسموح '+g.geo_rad+' م)</div>';
+    btn.disabled=true;
+  }
+  setPunchLabel(open);
+}
+function openPunch(user){
+  // أي بصمة مفتوحة (بلا خروج) للموظف، أياً كان تاريخها — للورديات الليلية
+  const open=DB.logs.filter(l=>l.user===user&&!l.out).sort((a,b)=>new Date(a.in)-new Date(b.in));
+  return open[open.length-1]||null;
+}
+function isOpen(){ return !!openPunch(session.user); }
+function setPunchLabel(open){
+  const btn=$('punchBtn');
+  if(btn.disabled&&!inRange) return;
+  if(open){ btn.classList.add('danger'); btn.classList.remove('amber'); btn.textContent='🔴 تسجيل انصراف'; }
+  else{ btn.classList.add('amber'); btn.classList.remove('danger'); btn.textContent='🟢 تسجيل حضور'; }
+  if(inRange) btn.disabled=false;
+}
+
+/* ===================== تسجيل الحضور/الانصراف ===================== */
+async function doPunch(){
+  if(!inRange||!curPos) return toast('يجب أن تكون داخل النطاق','bad');
+  const g=DB.settings; const d=distM(curPos.lat,curPos.lng,g.geo_lat,g.geo_lng);
+  if(d>g.geo_rad){ evalRange(); return toast('تحركت خارج النطاق','bad'); }
+  const btn=$('punchBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> جارٍ…';
+  const now=new Date(),t=todayKey(),ts=now.toISOString();
+  await fetchLogs();
+  const last=openPunch(session.user);
+  if(last){
+    // أي بصمة مفتوحة تُغلَق بوقت الضغط الحالي — يدعم الورديات الطويلة والليلية مهما طالت
+    const {error}=await sb.from('attendance').update({punch_out:ts,out_lat:curPos.lat,out_lng:curPos.lng}).eq('id',last.id);
+    if(error){ console.error(error); toast('تعذّر التسجيل','bad'); }
+    else toast('تم تسجيل الانصراف ✓','ok');
+  }else{
+    const {error}=await sb.from('attendance').insert({username:session.user,work_date:t,month:monthKey(now),
+      punch_in:ts,in_lat:curPos.lat,in_lng:curPos.lng});
+    if(error){ console.error(error); toast('تعذّر التسجيل','bad'); }
+    else toast('تم تسجيل الحضور ✓','ok');
+  }
+  await fetchLogs();
+  evalRange(); renderEmpStats(); renderEmpStatus(); buildEmpMonths(); renderEmpLog();
+}
+
+/* ===================== الحسابات ===================== */
+function fmtIQD(n){ return Math.round(n||0).toLocaleString('en-US')+' د.ع'; }
+function sessionMins(l){ if(!l.out) return 0; return (new Date(l.out)-new Date(l.in))/60000; }
+function userObj(user){ return DB.users.find(x=>x.user===user); }
+function userRate(user){ const u=userObj(user); return (u&&u.rate!=null&&u.rate!=='')?Number(u.rate):Number(DB.settings.default_rate||0); }
+
+/* حساب راتب موظف لشهر معيّن — يرجع تفصيلاً كاملاً */
+function computePay(user, mk){
+  const u=userObj(user);
+  const rows=DB.logs.filter(l=>l.user===user&&l.month===mk);
+  let totalMin=0; const days=new Set(); const minByDate={};
+  rows.forEach(l=>{ const m=sessionMins(l); totalMin+=m; if(l.out){ days.add(l.date); minByDate[l.date]=(minByDate[l.date]||0)+m; } });
+  const totalHours=totalMin/60;
+  const workedDays=days.size;
+  const payType=u?u.payType:'hourly';
+  const a=analyzeMonth(user, mk);
+  const tKey=todayKey();
+  let gross=0, shortHours=0, lateDeduction=0, absentDeduction=0;
+
+  if(payType==='fixed'){
+    // راتب قطعي: الأساس ثابت.
+    // الغياب في يوم دوام مقرر يُخصم منه قيمة اليوم كاملاً (الراتب ÷ أيام الدوام المقررة).
+    // النقص في ساعات يوم حضر فيه الموظف يُخصم بسعر خصم الساعة.
+    // الإجازة بدون راتب تُخصم كساعات نقص (أخف من الغياب).
+    // الإجازة براتب معفاة من الخصم.
+    const base=Number(u.salary||0);
+    const reqPerDay=Number(u.dailyHours||0);
+    const perHour=Number(u.lateDeduct||0);
+    // قيمة اليوم الواحد من الراتب
+    const dailyRate=a.scheduledDays>0?base/a.scheduledDays:0;
+    // الغياب الكامل: خصم قيمة اليوم
+    a.absent.filter(dt=>dt!==tKey).forEach(()=>{ absentDeduction+=dailyRate; });
+    // أيام الحضور الناقصة والإجازات بدون راتب: خصم بسعر الساعة
+    const chargeDates=[...a.present, ...a.leavesUnpaid].filter(dt=>dt!==tKey);
+    chargeDates.forEach(dt=>{ shortHours+=Math.max(0, reqPerDay - (minByDate[dt]||0)/60); });
+    lateDeduction=shortHours*perHour+absentDeduction;
+    gross=base;
+  }else{
+    // بالساعة
+    gross=totalHours*userRate(user);
+  }
+  const manualDed=DB.deductions.filter(d=>d.user===user&&d.month===mk).reduce((s,d)=>s+d.amount,0);
+  const bonus=DB.bonuses.filter(b=>b.user===user&&b.month===mk).reduce((s,b)=>s+b.amount,0);
+  const net=Math.max(0, gross - lateDeduction - manualDed + bonus);
+  return {totalMin,totalHours,workedDays,payType,gross,shortHours,lateDeduction,manualDed,bonus,net,
+          rate:userRate(user), salary:Number(u&&u.salary||0), dailyHours:Number(u&&u.dailyHours||0),
+          absentDeduction:payType==='fixed'?absentDeduction:0, absentCount:a.absent.length};
+}
+
+/* عدد أيام شهر معيّن */
+function daysInMonth(mk){ const [y,m]=mk.split('-').map(Number); return new Date(y,m,0).getDate(); }
+/* تحليل الحضور/الغياب/الإجازات ليوم دوام مقرر في الشهر */
+function analyzeMonth(user, mk){
+  const u=userObj(user);
+  const wd = u ? u.workDays : [0,1,2,3,4,6];
+  const [y,m]=mk.split('-').map(Number);
+  const total=daysInMonth(mk);
+  const today=new Date(); const isCurMonth=(mk===monthKey()); const tKey=todayKey();
+  // وجود بصمة دخول (ولو مفتوحة) يُعتبر حضوراً لذلك اليوم
+  const presentDates=new Set(DB.logs.filter(l=>l.user===user&&l.month===mk).map(l=>l.date));
+  const leaveMap={}; DB.leaves.filter(l=>l.user===user&&l.month===mk).forEach(l=>leaveMap[l.date]=l);
+  const absent=[], leavesPaid=[], leavesUnpaid=[], present=[];
+  let scheduledDays=0;
+  for(let d=1; d<=total; d++){
+    const dateObj=new Date(y,m-1,d);
+    const dateStr=`${y}-${pad(m)}-${pad(d)}`;
+    const dow=dateObj.getDay();
+    if(!wd.includes(dow)) continue;            // ليس يوم دوام
+    if(isCurMonth && dateObj>today) continue;  // يوم مستقبلي لا يُحسب غياباً
+    const lv=leaveMap[dateStr], isPresent=presentDates.has(dateStr);
+    // اليوم الجاري لم ينتهِ بعد: لا يُحسب غياباً ما لم يُسجَّل حضور/إجازة
+    if(isCurMonth && dateStr===tKey && !isPresent && !lv) continue;
+    scheduledDays++;
+    if(lv){ (lv.paid?leavesPaid:leavesUnpaid).push(dateStr); }
+    else if(isPresent){ present.push(dateStr); }
+    else { absent.push(dateStr); }
+  }
+  return {scheduledDays, present, absent, leavesPaid, leavesUnpaid};
+}
+
+
+/* ===================== واجهة الموظف ===================== */
+function initEmp(){ buildEmpMonths(); refreshGPS(); renderEmpStatus(); renderEmpStats(); renderEmpLog(); }
+function empTab(t){
+  ['Home','Log'].forEach(x=>{ $('emp'+x).classList.toggle('active',x===t); $('tab'+x).classList.toggle('active',x===t); });
+  if(t==='Log') renderEmpLog();
+  if(t==='Home'){ renderEmpStats(); renderEmpStatus(); }
+}
+function renderEmpStatus(){
+  const op=openPunch(session.user),el=$('empStatus');
+  if(op){
+    const inT=new Date(op.in);
+    el.innerHTML='<span class="pill in">🟢 داخل الدوام منذ '+pad(inT.getHours())+':'+pad(inT.getMinutes())+'</span>';
+  }else el.innerHTML='<span class="pill out">⚪ خارج الدوام</span>';
+}
+function renderEmpStats(){
+  const mk=monthKey(),t=todayKey();
+  const mine=DB.logs.filter(l=>l.user===session.user);
+  let todayMin=0; mine.forEach(l=>{ if(l.date===t)todayMin+=sessionMins(l); });
+  const p=computePay(session.user, mk);
+  const a=analyzeMonth(session.user, mk);
+  $('sToday').textContent=fmtHM(todayMin);
+  $('sMonth').textContent=fmtHM(p.totalMin);
+  $('sDays').textContent=p.workedDays;
+  $('sPay').textContent=fmtIQD(p.net);
+  // تفصيل الراتب
+  let d='';
+  const line=(label,val,color)=>`<div style="display:flex;justify-content:space-between;padding:5px 0;${color?'color:'+color:''}"><span>${label}</span><b>${val}</b></div>`;
+  if(p.payType==='fixed'){
+    d+=line('الراتب القطعي', fmtIQD(p.gross));
+    if(p.absentDeduction) d+=line(`خصم أيام الغياب (${p.absentCount})`, '−'+fmtIQD(p.absentDeduction), 'var(--bad)');
+    const shortageDed=p.lateDeduction-p.absentDeduction;
+    if(shortageDed) d+=line(`خصم نقص الساعات (${fmtHM(p.shortHours*60)})`, '−'+fmtIQD(shortageDed), 'var(--bad)');
+  }else{
+    d+=line('سعر الساعة', fmtIQD(p.rate));
+    d+=line(`إجمالي الأجر (${fmtHM(p.totalMin)})`, fmtIQD(p.gross));
+  }
+  d+=line('خصومات يدوية', '−'+fmtIQD(p.manualDed), 'var(--bad)');
+  d+=line('مكافآت', '+'+fmtIQD(p.bonus), 'var(--ok)');
+  d+=`<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:4px;border-top:1px solid var(--line);font-size:16px"><span style="font-weight:700">الصافي المستحق</span><b style="color:var(--deep)">${fmtIQD(p.net)}</b></div>`;
+  d+=`<div class="divider"></div><div style="font-size:13px;color:var(--muted)">
+    <div style="display:flex;justify-content:space-between;padding:3px 0"><span>أيام الحضور من المقرر</span><b>${a.present.length}/${a.scheduledDays}</b></div>
+    <div style="display:flex;justify-content:space-between;padding:3px 0"><span>أيام الغياب</span><b style="color:var(--bad)">${a.absent.length}</b></div>
+    <div style="display:flex;justify-content:space-between;padding:3px 0"><span>إجازات براتب / بدون</span><b>${a.leavesPaid.length} / ${a.leavesUnpaid.length}</b></div>
+  </div>`;
+  if(a.absent.length){
+    d+=`<div style="background:#fdf1f0;border:1px solid var(--bad);border-radius:10px;padding:10px;margin-top:8px;font-size:12px"><b style="color:var(--bad)">تواريخ غيابك:</b> ${a.absent.map(x=>x.slice(5)).join('، ')}</div>`;
+  }
+  $('empPayDetail').innerHTML=d;
+}
+function buildEmpMonths(){
+  const months=[...new Set(DB.logs.filter(l=>l.user===session.user).map(l=>l.month))];
+  if(!months.includes(monthKey())) months.unshift(monthKey());
+  months.sort().reverse();
+  const cur=$('empMonthSel').value;
+  $('empMonthSel').innerHTML=months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('');
+  if(cur&&months.includes(cur))$('empMonthSel').value=cur;
+}
+function renderEmpLog(){
+  const mk=$('empMonthSel').value||monthKey();
+  const rows=DB.logs.filter(l=>l.user===session.user&&l.month===mk).sort((a,b)=>new Date(b.in)-new Date(a.in));
+  if(!rows.length){ $('empLogTable').innerHTML='<div class="empty">لا يوجد سجل لهذا الشهر</div>'; return; }
+  let html='<table class="tbl"><tr><th>التاريخ</th><th>دخول</th><th>خروج</th><th>المدة</th></tr>';
+  rows.forEach(l=>{ const i=new Date(l.in);
+    html+=`<tr><td>${l.date.slice(5)}</td><td>${pad(i.getHours())}:${pad(i.getMinutes())}</td><td>${l.out?outDisplay(l):'<span style="color:var(--ok)">جارٍ</span>'}</td><td><b>${l.out?fmtHM(sessionMins(l)):'—'}</b></td></tr>`; });
+  html+='</table>'; $('empLogTable').innerHTML=html;
+}
+
+/* ===================== واجهة المدير ===================== */
+function initAdmin(){
+  const g=DB.settings;
+  if(g.geo_lat!=null){ $('gLat').value=g.geo_lat; $('gLng').value=g.geo_lng; $('gRad').value=g.geo_rad;
+    $('geoSaved').textContent='النطاق الحالي: ('+(+g.geo_lat).toFixed(5)+', '+(+g.geo_lng).toFixed(5)+') ± '+g.geo_rad+' م'; }
+  $('defRate').value=g.default_rate;
+  $('adminUser').value=session.user;
+  $('brandName').value=g.app_name||'بصمة الحضور';
+  const lg=g.app_logo||'📍';
+  const isImg = typeof lg==='string' && /^data:image\/(png|jpeg|jpg|gif|webp);base64,/.test(lg);
+  $('brandPreview').innerHTML = isImg ? `<img src="${lg}" style="width:100%;height:100%;object-fit:cover">` : esc(lg);
+  renderOverview(); renderEmpMgmt(); buildReportSelectors(); renderReport(); initManage();
+}
+function admTab(t){
+  ['Overview','Geo','Emps','Manage','Reports'].forEach(x=>{ $('adm'+x).classList.toggle('active',x===t); $('atab'+x).classList.toggle('active',x===t); });
+  if(t==='Overview') renderOverview();
+  if(t==='Emps') renderEmpMgmt();
+  if(t==='Manage') initManage();
+  if(t==='Reports'){ buildReportSelectors(); renderReport(); }
+}
+function fillEmpSelect(id){
+  const emps=DB.users.filter(u=>u.role==='employee');
+  const el=$(id); const cur=el.value;
+  el.innerHTML=emps.map(u=>`<option value="${esc(u.user)}">${esc(u.name)}</option>`).join('')||'<option value="">—</option>';
+  if(cur&&emps.some(e=>e.user===cur))el.value=cur;
+}
+function initManage(){
+  fillEmpSelect('mgEmp'); fillEmpSelect('dedEmp'); fillEmpSelect('bonEmp'); fillEmpSelect('lvEmp');
+  if(!$('mgDate').value) $('mgDate').value=todayKey();
+  if(!$('dedDate').value) $('dedDate').value=todayKey();
+  if(!$('bonDate').value) $('bonDate').value=todayKey();
+  if(!$('lvDate').value) $('lvDate').value=todayKey();
+  // أشهر الخصومات
+  const dm=[...new Set(DB.deductions.map(d=>d.month))];
+  if(!dm.includes(monthKey())) dm.unshift(monthKey());
+  dm.sort().reverse();
+  const cur=$('dedMonthView').value;
+  $('dedMonthView').innerHTML=dm.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('');
+  if(cur&&dm.includes(cur))$('dedMonthView').value=cur;
+  renderDeductions();
+  // أشهر المكافآت
+  const bm=[...new Set(DB.bonuses.map(b=>b.month))];
+  if(!bm.includes(monthKey())) bm.unshift(monthKey());
+  bm.sort().reverse();
+  const curB=$('bonMonthView').value;
+  $('bonMonthView').innerHTML=bm.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('');
+  if(curB&&bm.includes(curB))$('bonMonthView').value=curB;
+  renderBonuses();
+  // أشهر الإجازات
+  const lm=[...new Set(DB.leaves.map(l=>l.month))];
+  if(!lm.includes(monthKey())) lm.unshift(monthKey());
+  lm.sort().reverse();
+  const curL=$('lvMonthView').value;
+  $('lvMonthView').innerHTML=lm.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('');
+  if(curL&&lm.includes(curL))$('lvMonthView').value=curL;
+  renderLeaves();
+}
+
+/* ---- البصمات اليدوية ---- */
+function tsFromDateTime(dateStr,timeStr){
+  const [h,m]=timeStr.split(':').map(Number);
+  const [y,mo,d]=dateStr.split('-').map(Number);
+  return new Date(y,mo-1,d,h,m,0,0).toISOString();
+}
+function tsOut(dateStr,inTime,outTime){
+  const [oh,om]=outTime.split(':').map(Number);
+  const [y,mo,d]=dateStr.split('-').map(Number);
+  const outDate=new Date(y,mo-1,d,oh,om,0,0);
+  const inTs=new Date(tsFromDateTime(dateStr,inTime));
+  if(outDate<=inTs) outDate.setDate(outDate.getDate()+1);
+  return outDate.toISOString();
+}
+async function manualAddPunch(){
+  const user=$('mgEmp').value, dateStr=$('mgDate').value, inT=$('mgIn').value, outT=$('mgOut').value;
+  if(!user||!dateStr) return toast('اختر الموظف والتاريخ','bad');
+  if(!inT&&!outT) return toast('أدخل وقت دخول أو خروج على الأقل','bad');
+  if(!inT&&outT) return toast('لإضافة خروج فقط: اعرض بصمات اليوم وعدّل خروج البصمة المفتوحة','bad');
+  const btn=$('mgAddBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> جارٍ…';
+  const rec={username:user,work_date:dateStr,month:dateStr.slice(0,7),manual:true,
+    punch_in: tsFromDateTime(dateStr,inT),
+    punch_out: outT? tsOut(dateStr,inT,outT) : null};
+  const {error}=await sb.from('attendance').insert(rec);
+  btn.disabled=false; btn.textContent='➕ إضافة بصمة يدوية';
+  if(error){ console.error(error); return toast('تعذّر الإضافة','bad'); }
+  $('mgIn').value=''; $('mgOut').value='';
+  await fetchLogs(); loadDayPunches(); toast('تمت إضافة البصمة ✓','ok');
+}
+function loadDayPunches(){
+  const user=$('mgEmp').value, dateStr=$('mgDate').value;
+  if(!user||!dateStr){ $('dayPunches').innerHTML='<div class="empty">اختر الموظف والتاريخ</div>'; return; }
+  const rows=DB.logs.filter(l=>l.user===user&&l.date===dateStr).sort((a,b)=>new Date(a.in)-new Date(b.in));
+  if(!rows.length){ $('dayPunches').innerHTML='<div class="empty">لا توجد بصمات في هذا اليوم</div>'; return; }
+  $('dayPunches').innerHTML=rows.map(l=>{
+    const i=new Date(l.in), o=l.out?new Date(l.out):null;
+    const nextDay = o && (o.getDate()!==i.getDate()||o.getMonth()!==i.getMonth());
+    return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px">
+      <div class="inline-2">
+        <div class="field" style="margin:0"><label>دخول</label><input id="ed_in_${l.id}" type="time" value="${pad(i.getHours())}:${pad(i.getMinutes())}"></div>
+        <div class="field" style="margin:0"><label>خروج${nextDay?' <span style="color:var(--amber)">(فجر اليوم التالي)</span>':''}</label><input id="ed_out_${l.id}" type="time" value="${o?pad(o.getHours())+':'+pad(o.getMinutes()):''}"></div>
+      </div>
+      <div class="sub" style="margin-top:6px">المدة: <b>${l.out?fmtHM(sessionMins(l)):'بصمة مفتوحة'}</b></div>
+      <div class="inline-2" style="margin-top:8px">
+        <button class="mini" style="padding:9px;text-align:center" onclick="saveDayPunch(${l.id},'${l.date}')">حفظ</button>
+        <button class="mini del" style="padding:9px;text-align:center" onclick="delPunch(${l.id})">حذف البصمة</button>
+      </div>
+      ${l.manual?'<div class="sub" style="margin-top:6px;color:var(--amber)">✎ مُضافة يدوياً</div>':''}
+    </div>`;
+  }).join('');
+}
+async function saveDayPunch(id,dateStr){
+  const inV=$('ed_in_'+id).value, outV=$('ed_out_'+id).value;
+  if(!inV) return toast('وقت الدخول مطلوب','bad');
+  const upd={ punch_in: tsFromDateTime(dateStr,inV), manual:true,
+    punch_out: outV? tsOut(dateStr,inV,outV) : null };
+  const {error}=await sb.from('attendance').update(upd).eq('id',id);
+  if(error){ console.error(error); return toast('تعذّر الحفظ','bad'); }
+  await fetchLogs(); loadDayPunches(); toast('تم حفظ التعديل ✓','ok');
+}
+async function delPunch(id){
+  if(!confirm('حذف هذه البصمة؟')) return;
+  const {error}=await sb.from('attendance').delete().eq('id',id);
+  if(error){ console.error(error); return toast('تعذّر الحذف','bad'); }
+  await fetchLogs(); loadDayPunches(); toast('تم حذف البصمة','ok');
+}
+
+/* ---- الخصومات ---- */
+async function addDeduction(){
+  const user=$('dedEmp').value, dateStr=$('dedDate').value, amount=Number($('dedAmount').value), reason=$('dedReason').value.trim();
+  if(!user||!dateStr||!amount) return toast('أكمل الموظف والتاريخ والمبلغ','bad');
+  if(amount<=0) return toast('المبلغ يجب أن يكون أكبر من صفر','bad');
+  const btn=$('dedAddBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> جارٍ…';
+  const {error}=await sb.from('deductions').insert({username:user,month:dateStr.slice(0,7),ded_date:dateStr,amount,reason});
+  btn.disabled=false; btn.textContent='إضافة الخصم';
+  if(error){ console.error(error); return toast('تعذّر إضافة الخصم','bad'); }
+  $('dedAmount').value=''; $('dedReason').value='';
+  await fetchDeductions(); initManage(); toast('تم إضافة الخصم ✓','ok');
+}
+function renderDeductions(){
+  const mk=$('dedMonthView').value||monthKey();
+  const rows=DB.deductions.filter(d=>d.month===mk).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(!rows.length){ $('dedList').innerHTML='<div class="empty">لا خصومات في هذا الشهر</div>'; return; }
+  $('dedList').innerHTML=rows.map(d=>{
+    const u=userObj(d.user);
+    return `<div class="listitem">
+      <div><div class="nm">${esc(u?u.name:d.user)}</div><div class="sub">${d.date.slice(5)} · ${esc(d.reason||'بدون سبب')}</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--bad);font-weight:700">${fmtIQD(d.amount)}</span>
+        <button class="mini del" onclick="delDeduction(${d.id})">حذف</button>
+      </div></div>`;
+  }).join('');
+}
+async function delDeduction(id){
+  if(!confirm('حذف هذا الخصم؟')) return;
+  const {error}=await sb.from('deductions').delete().eq('id',id);
+  if(error){ console.error(error); return toast('تعذّر الحذف','bad'); }
+  await fetchDeductions(); renderDeductions(); toast('تم حذف الخصم','ok');
+}
+
+/* ---- المكافآت ---- */
+async function addBonus(){
+  const user=$('bonEmp').value, dateStr=$('bonDate').value, amount=Number($('bonAmount').value), reason=$('bonReason').value.trim();
+  if(!user||!dateStr||!amount) return toast('أكمل الموظف والتاريخ والمبلغ','bad');
+  if(amount<=0) return toast('المبلغ يجب أن يكون أكبر من صفر','bad');
+  const btn=$('bonAddBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> جارٍ…';
+  const {error}=await sb.from('bonuses').insert({username:user,month:dateStr.slice(0,7),bonus_date:dateStr,amount,reason});
+  btn.disabled=false; btn.textContent='إضافة المكافأة';
+  if(error){ console.error(error); return toast('تعذّر إضافة المكافأة','bad'); }
+  $('bonAmount').value=''; $('bonReason').value='';
+  await fetchBonuses(); initManage(); toast('تم إضافة المكافأة ✓','ok');
+}
+function renderBonuses(){
+  const mk=$('bonMonthView').value||monthKey();
+  const rows=DB.bonuses.filter(b=>b.month===mk).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(!rows.length){ $('bonList').innerHTML='<div class="empty">لا مكافآت في هذا الشهر</div>'; return; }
+  $('bonList').innerHTML=rows.map(b=>{
+    const u=userObj(b.user);
+    return `<div class="listitem">
+      <div><div class="nm">${esc(u?u.name:b.user)}</div><div class="sub">${b.date.slice(5)} · ${esc(b.reason||'بدون سبب')}</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--ok);font-weight:700">${fmtIQD(b.amount)}</span>
+        <button class="mini del" onclick="delBonus(${b.id})">حذف</button>
+      </div></div>`;
+  }).join('');
+}
+async function delBonus(id){
+  if(!confirm('حذف هذه المكافأة؟')) return;
+  const {error}=await sb.from('bonuses').delete().eq('id',id);
+  if(error){ console.error(error); return toast('تعذّر الحذف','bad'); }
+  await fetchBonuses(); renderBonuses(); toast('تم حذف المكافأة','ok');
+}
+
+/* ---- الإجازات ---- */
+async function addLeave(){
+  const user=$('lvEmp').value, dateStr=$('lvDate').value, paid=$('lvPaid').value==='true', reason=$('lvReason').value.trim();
+  if(!user||!dateStr) return toast('اختر الموظف والتاريخ','bad');
+  if(DB.leaves.some(l=>l.user===user&&l.date===dateStr)) return toast('توجد إجازة مسجلة لهذا اليوم','bad');
+  const btn=$('lvAddBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> جارٍ…';
+  const {error}=await sb.from('leaves').insert({username:user,month:dateStr.slice(0,7),leave_date:dateStr,paid,reason});
+  btn.disabled=false; btn.textContent='➕ تسجيل إجازة';
+  if(error){ console.error(error); return toast('تعذّر التسجيل','bad'); }
+  $('lvReason').value='';
+  await fetchLeaves(); initManage(); toast('تم تسجيل الإجازة ✓','ok');
+}
+function renderLeaves(){
+  const mk=$('lvMonthView').value||monthKey();
+  const rows=DB.leaves.filter(l=>l.month===mk).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(!rows.length){ $('lvList').innerHTML='<div class="empty">لا إجازات في هذا الشهر</div>'; return; }
+  $('lvList').innerHTML=rows.map(l=>{
+    const u=userObj(l.user);
+    return `<div class="listitem">
+      <div><div class="nm">${esc(u?u.name:l.user)}</div><div class="sub">${l.date.slice(5)} · ${esc(l.reason||'بدون سبب')}</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="pill ${l.paid?'in':'out'}">${l.paid?'براتب':'بدون راتب'}</span>
+        <button class="mini del" onclick="delLeave(${l.id})">حذف</button>
+      </div></div>`;
+  }).join('');
+}
+async function delLeave(id){
+  if(!confirm('حذف هذه الإجازة؟')) return;
+  const {error}=await sb.from('leaves').delete().eq('id',id);
+  if(error){ console.error(error); return toast('تعذّر الحذف','bad'); }
+  await fetchLeaves(); renderLeaves(); toast('تم حذف الإجازة','ok');
+}
+function renderOverview(){
+  const emps=DB.users.filter(u=>u.role==='employee');
+  $('adEmp').textContent=emps.length;
+  const present=emps.filter(u=>!!openPunch(u.user));
+  $('adIn').textContent=present.length;
+  if(!present.length){ $('presentList').innerHTML='<div class="empty">لا يوجد موظفون داخل الدوام حالياً</div>'; return; }
+  $('presentList').innerHTML=present.map(u=>{ const op=openPunch(u.user); const inT=new Date(op.in);
+    const dayTag=(inT.getDate()!==new Date().getDate())?' (من '+op.date.slice(5)+')':'';
+    return `<div class="listitem"><div><div class="nm">${esc(u.name)}</div><div class="sub">دخل ${pad(inT.getHours())}:${pad(inT.getMinutes())}${dayTag}</div></div><span class="pill in">🟢 متواجد</span></div>`; }).join('');
+}
+function useMyLocation(){
+  if(!navigator.geolocation) return toast('الموقع غير مدعوم','bad');
+  toast('جارٍ تحديد موقعك…');
+  navigator.geolocation.getCurrentPosition(
+    p=>{ $('gLat').value=p.coords.latitude.toFixed(6); $('gLng').value=p.coords.longitude.toFixed(6); if(!$('gRad').value)$('gRad').value=150; toast('تم تعيين موقعك الحالي','ok'); },
+    e=>toast(e.code===1?'تم رفض إذن الموقع':'تعذّر تحديد الموقع','bad'),
+    {enableHighAccuracy:true,timeout:12000});
+}
+async function saveGeo(){
+  const lat=parseFloat($('gLat').value),lng=parseFloat($('gLng').value),rad=parseInt($('gRad').value);
+  if(isNaN(lat)||isNaN(lng)||isNaN(rad)) return toast('أكمل بيانات النطاق','bad');
+  if(rad<20) return toast('نصف القطر صغير جداً (20 م على الأقل)','bad');
+  const btn=$('saveGeoBtn'); btn.disabled=true; btn.textContent='جارٍ الحفظ…';
+  const {error}=await sb.from('settings').update({geo_lat:lat,geo_lng:lng,geo_rad:rad}).eq('id',1);
+  btn.disabled=false; btn.textContent='حفظ النطاق';
+  if(error){ console.error(error); return toast('تعذّر الحفظ','bad'); }
+  await fetchSettings();
+  $('geoSaved').textContent='النطاق الحالي: ('+lat.toFixed(5)+', '+lng.toFixed(5)+') ± '+rad+' م';
+  toast('تم حفظ النطاق الجغرافي ✓','ok');
+}
+let pendingLogo=null;  // الشعار المضغوط بانتظار الحفظ
+function previewLogo(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  if(!file.type.startsWith('image/')) return toast('اختر ملف صورة','bad');
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      // ضغط: نرسم على لوحة 200×200 كحد أقصى
+      const max=200; let {width,height}=img;
+      const scale=Math.min(max/width,max/height,1);
+      const w=Math.round(width*scale), h=Math.round(height*scale);
+      const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      pendingLogo=canvas.toDataURL('image/jpeg',0.8);
+      $('brandPreview').innerHTML=`<img src="${pendingLogo}" style="width:100%;height:100%;object-fit:cover">`;
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+async function saveBranding(){
+  const name=$('brandName').value.trim();
+  if(!name) return toast('أدخل اسم البرنامج','bad');
+  const btn=$('saveBrandBtn'); btn.disabled=true; btn.textContent='جارٍ الحفظ…';
+  const upd={ app_name:name };
+  if(pendingLogo) upd.app_logo=pendingLogo;
+  const {error}=await sb.from('settings').update(upd).eq('id',1);
+  btn.disabled=false; btn.textContent='حفظ الهوية';
+  if(error){ console.error(error); return toast('تعذّر الحفظ','bad'); }
+  pendingLogo=null;
+  await fetchSettings();
+  $('brandSaved').textContent='تم تحديث الهوية ✓';
+  toast('تم حفظ هوية البرنامج ✓','ok');
+}
+async function saveDefRate(){
+  const inp=$('defRate'); const r=Number(inp.value)||0;
+  inp.disabled=true;
+  const {error}=await sb.from('settings').update({default_rate:r}).eq('id',1);
+  inp.disabled=false;
+  if(error){ console.error(error); return toast('تعذّر الحفظ','bad'); }
+  await fetchSettings(); toast('تم حفظ السعر الافتراضي','ok'); renderEmpMgmt();
+}
+function renderEmpMgmt(){
+  const emps=DB.users.filter(u=>u.role==='employee');
+  if(!emps.length){ $('empMgmtList').innerHTML='<div class="empty">لا يوجد موظفون مسجلون بعد</div>'; return; }
+  $('empMgmtList').innerHTML=emps.map(u=>{
+    const typeLabel = u.payType==='fixed' ? 'قطعي: '+fmtIQD(u.salary) : 'بالساعة: '+fmtIQD(userRate(u.user))+'/س';
+    return `<div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px">
+      <div class="listitem" style="border:none;padding:0;cursor:pointer" onclick="toggleEdit('${u.user}')">
+        <div><div class="nm">${esc(u.name)}</div><div class="sub">@${esc(u.user)} · ${typeLabel} · ${u.dailyHours} س/يوم</div></div>
+        <span class="mini">تعديل ▾</span>
+      </div>
+      <div id="edit_${u.user}" style="display:none;margin-top:12px">
+        <div class="field"><label>الاسم الكامل</label><input id="e_name_${u.user}" value="${esc(u.name)}"></div>
+        <div class="field"><label>نوع الراتب</label>
+          <select id="e_type_${u.user}" onchange="togglePayFieldsEdit('${u.user}')">
+            <option value="hourly" ${u.payType==='hourly'?'selected':''}>بالساعة</option>
+            <option value="fixed" ${u.payType==='fixed'?'selected':''}>راتب شهري قطعي</option>
+          </select>
+        </div>
+        <div id="e_hourly_${u.user}" style="display:${u.payType==='hourly'?'block':'none'}">
+          <div class="field"><label>سعر الساعة (د.ع)</label><input id="e_rate_${u.user}" type="number" value="${u.rate??''}" placeholder="افتراضي"></div>
+        </div>
+        <div id="e_fixed_${u.user}" style="display:${u.payType==='fixed'?'block':'none'}">
+          <div class="inline-2">
+            <div class="field"><label>الراتب الشهري (د.ع)</label><input id="e_salary_${u.user}" type="number" value="${u.salary??''}"></div>
+            <div class="field"><label>خصم ساعة النقص (د.ع)</label><input id="e_late_${u.user}" type="number" value="${u.lateDeduct??''}"></div>
+          </div>
+        </div>
+        <div class="field"><label>ساعات الدوام اليومي</label><input id="e_daily_${u.user}" type="number" step="any" value="${u.dailyHours}"></div>
+        <div class="field"><label>أيام الدوام الأسبوعية</label>
+          <div id="e_days_${u.user}" style="display:flex;flex-wrap:wrap;gap:6px">
+            ${[['6','السبت'],['0','الأحد'],['1','الإثنين'],['2','الثلاثاء'],['3','الأربعاء'],['4','الخميس'],['5','الجمعة']].map(([v,lbl])=>
+              `<label style="display:flex;align-items:center;gap:4px;font-size:13px;background:#fbfaf6;border:1px solid var(--line);border-radius:8px;padding:6px 9px;cursor:pointer">
+                <input type="checkbox" class="wd_${u.user}" value="${v}" ${u.workDays.includes(Number(v))?'checked':''} style="width:auto;margin:0">${lbl}</label>`
+            ).join('')}
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px">🔑 بيانات الدخول</div>
+        <div class="field"><label>اسم المستخدم</label><input id="e_user_${u.user}" value="${esc(u.user)}"></div>
+        <div class="field"><label>كلمة المرور الجديدة (اتركها فارغة لعدم التغيير)</label><input id="e_pass_${u.user}" type="password" placeholder="••••••"></div>
+        <button class="btn ghost" onclick="saveEmpCreds('${u.user}')">حفظ بيانات الدخول</button>
+        <div class="divider"></div>
+        <div class="inline-2">
+          <button class="btn" onclick="saveEmpEdit('${u.user}')">حفظ التعديلات</button>
+          <button class="btn danger" onclick="delEmp('${u.user}')">حذف الموظف</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleEdit(user){ const el=$('edit_'+user); el.style.display = el.style.display==='none'?'block':'none'; }
+function togglePayFieldsEdit(user){
+  const t=$('e_type_'+user).value;
+  $('e_hourly_'+user).style.display = t==='hourly'?'block':'none';
+  $('e_fixed_'+user).style.display = t==='fixed'?'block':'none';
+}
+async function saveEmpEdit(user){
+  const t=$('e_type_'+user).value;
+  const nm=$('e_name_'+user).value.trim();
+  if(!nm) return toast('الاسم الكامل مطلوب','bad');
+  const days=[...document.querySelectorAll('.wd_'+user+':checked')].map(c=>c.value);
+  if(!days.length) return toast('اختر يوم دوام واحداً على الأقل','bad');
+  const upd={ name:nm, pay_type:t, daily_hours:Number($('e_daily_'+user).value)||8, work_days:days.join(',') };
+  if(t==='hourly'){
+    const r=$('e_rate_'+user).value; upd.rate = r===''?null:Number(r);
+    upd.monthly_salary=null; upd.late_deduct_per_hour=null;
+  }else{
+    upd.monthly_salary=Number($('e_salary_'+user).value)||0;
+    upd.late_deduct_per_hour=Number($('e_late_'+user).value)||0;
+    upd.rate=null;
+  }
+  const {error}=await sb.from('profiles').update(upd).eq('username',user);
+  if(error){ console.error(error); return toast('تعذّر الحفظ','bad'); }
+  await fetchProfiles(); renderEmpMgmt(); renderOverview(); buildReportSelectors(); renderReport();
+  toast('تم حفظ التعديلات ✓','ok');
+}
+async function saveEmpCreds(oldUser){
+  const newUser=$('e_user_'+oldUser).value.trim().toLowerCase();
+  const newPass=$('e_pass_'+oldUser).value;
+  if(!newUser) return toast('اسم المستخدم مطلوب','bad');
+  if(!validUser(newUser)) return toast('اسم المستخدم: أحرف إنجليزية وأرقام و _ فقط (3–20)','bad');
+  if(newPass && newPass.length<6) return toast('كلمة المرور 6 أحرف على الأقل','bad');
+  const payload={username:oldUser};
+  if(newUser!==oldUser) payload.newUsername=newUser;
+  if(newPass) payload.newPassword=newPass;
+  if(!payload.newUsername && !payload.newPassword) return toast('لا تغييرات لحفظها','bad');
+  try{ await callAdmin('set-credentials',payload); }
+  catch(e){ console.error(e); return toast(/exist/i.test(e.message)?'اسم المستخدم مستخدم بالفعل':'تعذّر الحفظ','bad'); }
+  await reloadAll(); renderEmpMgmt(); renderOverview(); buildReportSelectors(); renderReport();
+  toast('تم حفظ بيانات الدخول ✓','ok');
+}
+async function saveAdminCreds(){
+  const newUser=$('adminUser').value.trim().toLowerCase();
+  const newPass=$('adminPass').value;
+  const oldUser=session.user;
+  if(!newUser) return toast('اسم المستخدم مطلوب','bad');
+  if(!validUser(newUser)) return toast('اسم المستخدم: أحرف إنجليزية وأرقام و _ فقط (3–20)','bad');
+  if(newPass && newPass.length<6) return toast('كلمة المرور 6 أحرف على الأقل','bad');
+  const changeUser = newUser!==oldUser;
+  if(!changeUser && !newPass) return toast('لا تغييرات لحفظها','bad');
+  try{
+    if(changeUser){ const p={username:oldUser,newUsername:newUser}; if(newPass)p.newPassword=newPass; await callAdmin('set-credentials',p); session.user=newUser; }
+    else { const {error}=await sb.auth.updateUser({password:newPass}); if(error) throw error; }
+  }catch(e){ console.error(e); return toast(/exist/i.test(e.message||'')?'اسم المستخدم مستخدم بالفعل':'تعذّر الحفظ','bad'); }
+  $('adminPass').value='';
+  await reloadAll();
+  const cu=currentUser(); if(cu)$('admWho').textContent='مرحباً، '+cu.name;
+  toast('تم حفظ بياناتك ✓','ok');
+}
+function togglePayFields(prefix){
+  const t=$(prefix+'PayType').value;
+  $(prefix+'Hourly').style.display = t==='hourly'?'block':'none';
+  $(prefix+'Fixed').style.display = t==='fixed'?'block':'none';
+}
+async function adminAddEmp(){
+  const name=$('newName').value.trim(),user=$('newUser').value.trim().toLowerCase(),pass=$('newPass').value;
+  const payType=$('newPayType').value;
+  if(!name||!user||!pass) return toast('أكمل الاسم واسم المستخدم وكلمة المرور','bad');
+  if(!validUser(user)) return toast('اسم المستخدم: أحرف إنجليزية وأرقام و _ فقط (3–20)','bad');
+  if(pass.length<6) return toast('كلمة المرور 6 أحرف على الأقل','bad');
+  const btn=$('addEmpBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> جارٍ…';
+  const profile={name,pay_type:payType,daily_hours:Number($('newDaily').value)||8};
+  if(payType==='hourly'){ if($('newRate').value!=='') profile.rate=Number($('newRate').value); }
+  else{ profile.monthly_salary=Number($('newSalary').value)||0; profile.late_deduct_per_hour=Number($('newLate').value)||0; }
+  try{ await callAdmin('create-employee',{username:user,password:pass,profile}); }
+  catch(e){ btn.disabled=false; btn.textContent='إنشاء حساب الموظف'; console.error(e);
+    return toast(/exist|registered/i.test(e.message)?'اسم المستخدم مستخدم بالفعل':'تعذّر إنشاء الحساب','bad'); }
+  btn.disabled=false; btn.textContent='إنشاء حساب الموظف';
+  $('newName').value=$('newUser').value=$('newPass').value=$('newRate').value='';
+  $('newSalary').value=$('newLate').value=''; $('newDaily').value='8'; $('newPayType').value='hourly'; togglePayFields('new');
+  await fetchProfiles(); renderEmpMgmt(); renderOverview(); buildReportSelectors();
+  toast('تم إنشاء حساب الموظف ✓','ok');
+}
+async function delEmp(user){
+  if(!confirm('حذف الموظف وكل سجلاته؟')) return;
+  try{ await callAdmin('delete-employee',{username:user}); }
+  catch(e){ console.error(e); return toast('تعذّر الحذف','bad'); }
+  await reloadAll(); renderEmpMgmt(); renderOverview(); buildReportSelectors(); renderReport(); toast('تم حذف الموظف','ok');
+}
+function buildReportSelectors(){
+  const emps=DB.users.filter(u=>u.role==='employee');
+  const cur=$('repEmp').value;
+  $('repEmp').innerHTML=emps.map(u=>`<option value="${esc(u.user)}">${esc(u.name)}</option>`).join('')||'<option value="">—</option>';
+  if(cur&&emps.some(e=>e.user===cur))$('repEmp').value=cur;
+  const months=[...new Set(DB.logs.map(l=>l.month))];
+  if(!months.includes(monthKey()))months.unshift(monthKey());
+  months.sort().reverse();
+  const curM=$('repMonth').value;
+  $('repMonth').innerHTML=months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('');
+  if(curM&&months.includes(curM))$('repMonth').value=curM;
+  if(!$('repDay').value) $('repDay').value=todayKey();
+  const curP=$('payMonth').value;
+  $('payMonth').innerHTML=months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('');
+  if(curP&&months.includes(curP))$('payMonth').value=curP;
+}
+function repMode(mode){
+  $('rsegMonthly').classList.toggle('active',mode==='monthly');
+  $('rsegDaily').classList.toggle('active',mode==='daily');
+  $('rsegPayroll').classList.toggle('active',mode==='payroll');
+  $('repMonthlyWrap').style.display = mode==='monthly'?'block':'none';
+  $('repDailyWrap').style.display = mode==='daily'?'block':'none';
+  $('repPayrollWrap').style.display = mode==='payroll'?'block':'none';
+  if(mode==='monthly') renderReport();
+  else if(mode==='daily') renderDailyReport();
+  else renderPayroll();
+}
+function renderPayroll(){
+  const mk=$('payMonth').value||monthKey(), area=$('payrollArea');
+  const emps=DB.users.filter(u=>u.role==='employee');
+  if(!emps.length){ area.innerHTML='<div class="empty">لا يوجد موظفون</div>'; return; }
+  let grandTotal=0;
+  const rowsData=emps.map(u=>{
+    const p=computePay(u.user,mk);
+    const a=analyzeMonth(u.user,mk);
+    grandTotal+=p.net;
+    return {u,p,a};
+  });
+  // ملخص علوي
+  let html=`<div class="stat-grid" style="margin-bottom:8px">
+    <div class="stat"><div class="n">${emps.length}</div><div class="l">عدد الموظفين</div></div>
+    <div class="stat" style="background:var(--teal-soft);border-color:var(--teal)"><div class="n" style="color:var(--deep);font-size:20px">${fmtIQD(grandTotal)}</div><div class="l">إجمالي الرواتب</div></div></div>`;
+  html+=`<div class="hint" style="margin-bottom:12px">كشف ${monthLabel(mk)} · اضغط على أي موظف لعرض تفاصيله</div>`;
+  // بطاقة لكل موظف
+  rowsData.forEach(({u,p,a})=>{
+    const typeTxt = p.payType==='fixed'?'قطعي':'بالساعة';
+    html+=`<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="togglePayrollDetail('${u.user}')">
+        <div><div class="nm">${esc(u.name)}</div><div class="sub">${typeTxt} · ${fmtHM(p.totalMin)} · ${a.absent.length} غياب</div></div>
+        <div style="text-align:left"><div style="font-weight:800;color:var(--deep);font-family:'Cairo'">${fmtIQD(p.net)}</div><div class="sub">تفاصيل ▾</div></div>
+      </div>
+      <div id="pd_${u.user}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px">
+        <div style="display:flex;justify-content:space-between;padding:3px 0"><span>${p.payType==='fixed'?'الراتب القطعي':'إجمالي الأجر ('+fmtHM(p.totalMin)+')'}</span><b>${fmtIQD(p.gross)}</b></div>
+        ${p.payType==='fixed'&&p.absentDeduction?`<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--bad)"><span>خصم الغياب (${p.absentCount} يوم)</span><b>−${fmtIQD(p.absentDeduction)}</b></div>`:''}
+        ${p.payType==='fixed'&&p.shortHours?`<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--bad)"><span>خصم نقص الساعات (${fmtHM(p.shortHours*60)})</span><b>−${fmtIQD(p.lateDeduction-p.absentDeduction)}</b></div>`:''}
+        <div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--bad)"><span>خصومات يدوية</span><b>−${fmtIQD(p.manualDed)}</b></div>
+        <div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--ok)"><span>مكافآت</span><b>+${fmtIQD(p.bonus)}</b></div>
+        <div style="display:flex;justify-content:space-between;padding:3px 0"><span>أيام حضور / مقررة</span><b>${a.present.length}/${a.scheduledDays}</b></div>
+        <div style="display:flex;justify-content:space-between;padding:3px 0"><span>إجازات (براتب/بدون)</span><b>${a.leavesPaid.length}/${a.leavesUnpaid.length}</b></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;margin-top:4px;border-top:1px solid var(--line);font-size:15px"><span style="font-weight:700">الصافي</span><b style="color:var(--deep)">${fmtIQD(p.net)}</b></div>
+      </div>
+    </div>`;
+  });
+  area.innerHTML=html;
+}
+function togglePayrollDetail(user){ const el=$('pd_'+user); el.style.display = el.style.display==='none'?'block':'none'; }
+function renderDailyReport(){
+  const dateStr=$('repDay').value, area=$('dailyArea');
+  if(!dateStr){ area.innerHTML='<div class="empty">اختر التاريخ</div>'; return; }
+  const emps=DB.users.filter(u=>u.role==='employee');
+  if(!emps.length){ area.innerHTML='<div class="empty">لا يوجد موظفون</div>'; return; }
+  const dow=new Date(dateStr+'T00:00:00').getDay();
+  const leaveMap={}; DB.leaves.filter(l=>l.date===dateStr).forEach(l=>leaveMap[l.user]=l);
+  let presentCount=0, absentCount=0, leaveCount=0, totalMin=0;
+  const cards=emps.map(u=>{
+    const punches=DB.logs.filter(l=>l.user===u.user&&l.date===dateStr).sort((a,b)=>new Date(a.in)-new Date(b.in));
+    const dayMin=punches.reduce((s,l)=>s+sessionMins(l),0);
+    const scheduled=u.workDays.includes(dow);
+    const leave=leaveMap[u.user];
+    let status, color, detail;
+    if(punches.length){
+      presentCount++; totalMin+=dayMin;
+      status='حاضر'; color='in';
+      detail=punches.map(l=>{const i=new Date(l.in);return pad(i.getHours())+':'+pad(i.getMinutes())+' → '+(l.out?outDisplay(l):'<span style="color:var(--ok)">جارٍ</span>');}).join('<br>');
+      detail+=`<div style="margin-top:4px;font-weight:700">المجموع: ${fmtHM(dayMin)}</div>`;
+    }else if(leave){
+      leaveCount++;
+      status=leave.paid?'إجازة براتب':'إجازة بدون راتب'; color=leave.paid?'in':'out';
+      detail=esc(leave.reason||'—');
+    }else if(scheduled){
+      absentCount++;
+      status='غائب'; color='out'; detail='يوم دوام مقرر';
+    }else{
+      status='عطلة'; color=''; detail='ليس يوم دوام';
+    }
+    const pillStyle = color==='in'?'background:#e3f6ec;color:var(--ok)':color==='out'?'background:#fdeceb;color:var(--bad)':'background:#eee;color:var(--muted)';
+    return `<div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div class="nm">${esc(u.name)}</div>
+        <span class="pill" style="${pillStyle}">${status}</span>
+      </div>
+      <div class="sub">${detail}</div>
+    </div>`;
+  }).join('');
+  let html=`<div class="stat-grid" style="margin-bottom:10px">
+    <div class="stat"><div class="n" style="color:var(--ok)">${presentCount}</div><div class="l">حاضر</div></div>
+    <div class="stat"><div class="n" style="color:var(--bad)">${absentCount}</div><div class="l">غائب</div></div></div>
+  <div class="stat-grid" style="margin-bottom:14px">
+    <div class="stat"><div class="n" style="color:var(--amber)">${leaveCount}</div><div class="l">إجازات</div></div>
+    <div class="stat"><div class="n">${fmtHM(totalMin)}</div><div class="l">إجمالي ساعات اليوم</div></div></div>`;
+  area.innerHTML=html+cards;
+}
+function renderReport(){
+  const user=$('repEmp').value,mk=$('repMonth').value,area=$('reportArea');
+  if(!user){ area.innerHTML='<div class="empty">لا يوجد موظفون</div>'; return; }
+  const rows=DB.logs.filter(l=>l.user===user&&l.month===mk).sort((a,b)=>new Date(a.in)-new Date(b.in));
+  const p=computePay(user,mk);
+  const uo=userObj(user);
+  const typeTxt = p.payType==='fixed' ? 'راتب قطعي' : 'بالساعة';
+  let html=`<div style="background:linear-gradient(135deg,var(--deep),var(--teal));color:#fff;border-radius:14px;padding:14px;margin-bottom:14px">
+    <div style="font-family:'Cairo';font-weight:800;font-size:18px">${esc(uo?uo.name:user)}</div>
+    <div style="opacity:.85;font-size:13px;margin-top:2px">@${esc(user)} · ${typeTxt} · ${uo?uo.dailyHours:''} ساعات/يوم · كشف ${monthLabel(mk)}</div>
+  </div>`;
+  html+=`<div class="stat-grid" style="margin-bottom:12px">
+    <div class="stat"><div class="n">${fmtHM(p.totalMin)}</div><div class="l">إجمالي الساعات</div></div>
+    <div class="stat"><div class="n">${p.workedDays}</div><div class="l">أيام الحضور</div></div></div>`;
+  if(p.payType==='fixed'){
+    html+=`<div class="stat-grid" style="margin-bottom:12px">
+      <div class="stat"><div class="n" style="font-size:19px">${fmtIQD(p.salary)}</div><div class="l">الراتب القطعي</div></div>`;
+    if(p.absentDeduction) html+=`<div class="stat"><div class="n" style="font-size:19px;color:var(--bad)">${fmtIQD(p.absentDeduction)}</div><div class="l">خصم الغياب (${p.absentCount} يوم)</div></div>`;
+    const shortageDed=p.lateDeduction-p.absentDeduction;
+    if(shortageDed) html+=`<div class="stat"><div class="n" style="font-size:19px;color:var(--bad)">${fmtIQD(shortageDed)}</div><div class="l">خصم نقص الساعات (${fmtHM(p.shortHours*60)})</div></div>`;
+    html+=`</div>`;
+  }else{
+    html+=`<div class="stat-grid" style="margin-bottom:12px">
+      <div class="stat"><div class="n" style="font-size:19px">${fmtIQD(p.rate)}</div><div class="l">سعر الساعة</div></div>
+      <div class="stat"><div class="n" style="font-size:19px">${fmtIQD(p.gross)}</div><div class="l">إجمالي الأجر</div></div></div>`;
+  }
+  html+=`<div class="stat" style="margin-bottom:10px;background:#fdf1f0;border-color:var(--bad)">
+    <div class="n" style="color:var(--bad);font-size:19px">${fmtIQD(p.manualDed)}</div><div class="l">خصومات يدوية (عقوبات)</div></div>`;
+  html+=`<div class="stat" style="margin-bottom:10px;background:#f0faf4;border-color:var(--ok)">
+    <div class="n" style="color:var(--ok);font-size:19px">${fmtIQD(p.bonus)}</div><div class="l">مكافآت</div></div>`;
+  html+=`<div class="stat" style="margin-bottom:14px;background:var(--teal-soft);border-color:var(--teal)">
+    <div class="n" style="color:var(--deep)">${fmtIQD(p.net)}</div><div class="l">الصافي المستحق</div></div>`;
+  if(!rows.length){ html+='<div class="empty">لا يوجد سجل لهذا الشهر</div>'; }
+  else{
+    html+='<table class="tbl"><tr><th>اليوم</th><th>دخول</th><th>خروج</th><th>المدة</th></tr>';
+    rows.forEach(l=>{ const i=new Date(l.in);
+      html+=`<tr><td>${l.date.slice(5)}</td><td>${pad(i.getHours())}:${pad(i.getMinutes())}</td><td>${l.out?outDisplay(l):'—'}</td><td><b>${l.out?fmtHM(sessionMins(l)):'جارٍ'}</b></td></tr>`; });
+    html+='</table>';
+  }
+  // تحليل الغياب والإجازات
+  const a=analyzeMonth(user,mk);
+  html+=`<div class="divider"></div><h3 style="font-size:15px">📋 الالتزام والغياب</h3>`;
+  html+=`<div class="stat-grid" style="margin-bottom:10px">
+    <div class="stat"><div class="n">${a.present.length}/${a.scheduledDays}</div><div class="l">أيام حضور من المقرر</div></div>
+    <div class="stat"><div class="n" style="color:var(--bad)">${a.absent.length}</div><div class="l">أيام غياب</div></div></div>`;
+  html+=`<div class="stat-grid" style="margin-bottom:10px">
+    <div class="stat"><div class="n" style="color:var(--ok)">${a.leavesPaid.length}</div><div class="l">إجازات براتب</div></div>
+    <div class="stat"><div class="n" style="color:var(--amber)">${a.leavesUnpaid.length}</div><div class="l">إجازات بدون راتب</div></div></div>`;
+  if(a.absent.length){
+    html+=`<div style="background:#fdf1f0;border:1px solid var(--bad);border-radius:12px;padding:12px;margin-bottom:8px">
+      <div style="font-weight:700;color:var(--bad);margin-bottom:6px">🚫 تواريخ الغياب:</div>
+      <div style="font-size:13px">${a.absent.map(d=>d.slice(5)).join('، ')}</div></div>`;
+  }
+  if(a.leavesPaid.length||a.leavesUnpaid.length){
+    html+=`<div style="background:#f0faf4;border:1px solid var(--ok);border-radius:12px;padding:12px">
+      <div style="font-weight:700;color:var(--deep);margin-bottom:6px">🌴 تواريخ الإجازات:</div>`;
+    if(a.leavesPaid.length) html+=`<div style="font-size:13px">براتب: ${a.leavesPaid.map(d=>d.slice(5)).join('، ')}</div>`;
+    if(a.leavesUnpaid.length) html+=`<div style="font-size:13px;margin-top:4px">بدون راتب: ${a.leavesUnpaid.map(d=>d.slice(5)).join('، ')}</div>`;
+    html+=`</div>`;
+  }
+  area.innerHTML=html;
+}
+
+/* ===================== الإقلاع ===================== */
+(async function(){
+  try{
+    const {data:{session:as}}=await sb.auth.getSession();
+    if(as){
+      await loadSessionProfile();
+      if(session){ await reloadAll(); enterApp(); return; }
+      try{ await sb.auth.signOut(); }catch(e){}
+    }
+    session=null;
+    $('bootScreen').style.display='none';
+    $('authScreen').style.display='block';
+  }catch(err){
+    console.error(err);
+    $('bootScreen').innerHTML='<div style="text-align:center;padding:20px;color:var(--bad)">⚠️ تعذّر الاتصال بالخادم.<br>تحقق من اتصال الإنترنت ومن صحة إعدادات Supabase.</div>';
+  }
+})();
+</script>
+</body>
+</html>

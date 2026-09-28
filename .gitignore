@@ -1,0 +1,8 @@
+.mcp.json
+.wrangler/
+.claude/
+testsprite_tests/
+node_modules/
+.env
+.env.*
+*.log
