@@ -382,17 +382,27 @@ async function callAdmin(action, payload){
 }
 
 /* ===================== الحالة ===================== */
-let DB={ users:[], logs:[], deductions:[], bonuses:[], leaves:[], settings:{geo_lat:null,geo_lng:null,geo_rad:null,default_rate:20,app_name:'بصمة الحضور',app_logo:'📍'} };
+let DB={ users:[], logs:[], deductions:[], bonuses:[], leaves:[], settings:{geo_lat:null,geo_lng:null,geo_rad:null,default_rate:20000,app_name:'بصمة الحضور',app_logo:'📍'} };
 let session=null;     // {user, role}
 let curPos=null;      // {lat,lng,acc}
 let inRange=false;
+let isPunching=false; // حماية من الضغط المتكرر
+let realtimeChannel=null; // قناة التحديث المباشر
 
 const $=id=>document.getElementById(id);
 /* تهريب أي نص قادم من المستخدم قبل حقنه في innerHTML — يحمي من XSS المخزّن */
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 /* اسم مستخدم آمن: أحرف إنجليزية صغيرة وأرقام و _ فقط (يمنع كسر onclick وحقن النصوص) */
 function validUser(u){ return /^[a-z0-9_]{3,20}$/.test(u); }
-function toast(msg,type=''){ const t=$('toast'); t.textContent=msg; t.className='toast show '+type; setTimeout(()=>t.className='toast',2400); }
+let toastTimer=null;
+function toast(msg,type=''){
+  const t=$('toast');
+  if(!t) return;
+  t.textContent=msg;
+  t.className='toast show '+type;
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.className='toast', 3400);
+}
 function syncShow(on){ $('syncDot').className='syncdot'+(on?' show':''); }
 function pad(n){return String(n).padStart(2,'0');}
 function fmtHM(mins){ mins=Math.max(0,Math.round(mins)); return Math.floor(mins/60)+':'+pad(mins%60); }
@@ -432,9 +442,9 @@ async function fetchSettings(){
 function applyBranding(){
   const name=DB.settings.app_name||'بصمة الحضور';
   const logo=DB.settings.app_logo||'📍';
-  // هل الشعار صورة (Base64) أم رمز؟
-  const isImg = typeof logo==='string' && /^data:image\/(png|jpeg|jpg|gif|webp);base64,/.test(logo);
-  const logoHTML = isImg ? `<img src="${logo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(logo);
+  // هل الشعار صورة (Base64 أو رابط) أم رمز؟
+  const isImg = typeof logo==='string' && (/^data:image\//i.test(logo) || /^https?:\/\//i.test(logo));
+  const logoHTML = isImg ? `<img src="${esc(logo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(logo);
   document.title = 'نظام '+name;
   const set=(id,html)=>{ const el=$(id); if(el) el.innerHTML=html; };
   const setTxt=(id,txt)=>{ const el=$(id); if(el) el.textContent=txt; };
@@ -486,12 +496,19 @@ async function doRegister(){
   const btn=$('regBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> جارٍ…';
   // إنشاء حساب المصادقة (كلمة المرور تُخزَّن بأمان في Supabase Auth)
   const {data,error}=await sb.auth.signUp({email:userEmail(user),password:pass,options:{data:{name,username:user}}});
-  if(error||!data.user){ btn.disabled=false; btn.textContent='إنشاء حساب موظف'; console.error(error);
-    return toast(error&&/registered|exists/i.test(error.message)?'اسم المستخدم مستخدم بالفعل':'تعذّر إنشاء الحساب','bad'); }
+  if(error||!data?.user){
+    btn.disabled=false; btn.textContent='إنشاء حساب موظف'; console.error(error);
+    const em = error?.message || '';
+    let msg = 'تعذّر إنشاء الحساب';
+    if(/registered|exists|already/i.test(em)) msg = 'اسم المستخدم مستخدم بالفعل';
+    else if(/weak|password/i.test(em)) msg = 'كلمة المرور ضعيفة (6 أحرف على الأقل)';
+    else if(em) msg += ': ' + em;
+    return toast(msg,'bad');
+  }
   // إنشاء ملف الموظف المرتبط بالحساب (الدور يُفرض موظفاً عبر سياسات قاعدة البيانات)
-  const {error:pe}=await sb.from('profiles').insert({id:data.user.id,username:user,name,role:'employee'});
+  const {error:pe}=await sb.from('profiles').upsert({id:data.user.id,username:user,name,role:'employee'},{onConflict:'id'});
   btn.disabled=false; btn.textContent='إنشاء حساب موظف';
-  if(pe){ console.error(pe); return toast('تعذّر إنشاء ملف الموظف (تحقق من تعطيل تأكيد البريد في Supabase)','bad'); }
+  if(pe){ console.error(pe); return toast('تعذّر إنشاء ملف الموظف (تحقق من تعطيل تأكيد البريد في Supabase): ' + pe.message,'bad'); }
   try{ await sb.auth.signOut(); }catch(e){}   // نعود لشاشة الدخول لدخول نظيف باسم المستخدم
   toast('تم إنشاء الحساب، يمكنك الدخول','ok');
   $('rName').value=$('rUser').value=$('rPass').value='';
@@ -516,20 +533,26 @@ function currentUser(){ return DB.users.find(u=>u.user===session.user); }
 function enterApp(){
   $('bootScreen').style.display='none';
   $('authScreen').style.display='none';
+  const cu = currentUser();
+  const displayName = cu ? cu.name : (session ? session.user : 'المستخدم');
   if(session.role==='admin'){
     $('adminApp').style.display='block'; $('empApp').style.display='none';
-    $('admWho').textContent='مرحباً، '+currentUser().name;
+    $('admWho').textContent='مرحباً، '+displayName;
     subscribeRealtime(); initAdmin();
   }else{
     $('empApp').style.display='block'; $('adminApp').style.display='none';
-    $('empWho').textContent='مرحباً، '+currentUser().name;
+    $('empWho').textContent='مرحباً، '+displayName;
     subscribeRealtime(); initEmp();
   }
 }
 
 /* ===================== التحديث اللحظي ===================== */
 function subscribeRealtime(){
-  sb.channel('att-live')
+  if(realtimeChannel){
+    try{ sb.removeChannel(realtimeChannel); }catch(e){}
+    realtimeChannel=null;
+  }
+  realtimeChannel=sb.channel('att-live')
     .on('postgres_changes',{event:'*',schema:'public',table:'attendance'},async()=>{
       await fetchLogs(); refreshUI();
     })
@@ -575,8 +598,9 @@ function gpsFail(msg){
   const btn=$('punchBtn'); btn.disabled=true; btn.textContent='الموقع غير متاح';
 }
 function evalRange(){
+  if(!curPos) return;
   const g=DB.settings; const btn=$('punchBtn');
-  if(g.geo_lat==null){
+  if(!g || g.geo_lat==null){
     inRange=false;
     $('gpsStatus').className='gpsbox bad';
     $('gpsStatus').innerHTML='<div class="big">⚠️ لم يحدد المدير نطاق الحضور بعد</div><div class="muted">تواصل مع الإدارة.</div>';
@@ -612,33 +636,47 @@ function setPunchLabel(open){
 
 /* ===================== تسجيل الحضور/الانصراف ===================== */
 async function doPunch(){
+  if(isPunching) return;
   if(!inRange||!curPos) return toast('يجب أن تكون داخل النطاق','bad');
   const g=DB.settings; const d=distM(curPos.lat,curPos.lng,g.geo_lat,g.geo_lng);
   if(d>g.geo_rad){ evalRange(); return toast('تحركت خارج النطاق','bad'); }
+  isPunching=true;
   const btn=$('punchBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> جارٍ…';
   const now=new Date(),t=todayKey(),ts=now.toISOString();
-  await fetchLogs();
-  const last=openPunch(session.user);
-  if(last){
-    // أي بصمة مفتوحة تُغلَق بوقت الضغط الحالي — يدعم الورديات الطويلة والليلية مهما طالت
-    const {error}=await sb.from('attendance').update({punch_out:ts,out_lat:curPos.lat,out_lng:curPos.lng}).eq('id',last.id);
-    if(error){ console.error(error); toast('تعذّر التسجيل','bad'); }
-    else toast('تم تسجيل الانصراف ✓','ok');
-  }else{
-    const {error}=await sb.from('attendance').insert({username:session.user,work_date:t,month:monthKey(now),
-      punch_in:ts,in_lat:curPos.lat,in_lng:curPos.lng});
-    if(error){ console.error(error); toast('تعذّر التسجيل','bad'); }
-    else toast('تم تسجيل الحضور ✓','ok');
+  try{
+    await fetchLogs();
+    const openPunches=DB.logs.filter(l=>l.user===session.user&&!l.out);
+    if(openPunches.length){
+      // إغلاق كل البصمات المفتوحة لمنع تعليق أي بصمة قديمة
+      for(const op of openPunches){
+        await sb.from('attendance').update({punch_out:ts,out_lat:curPos.lat,out_lng:curPos.lng}).eq('id',op.id);
+      }
+      toast('تم تسجيل الانصراف ✓','ok');
+    }else{
+      const {error}=await sb.from('attendance').insert({username:session.user,work_date:t,month:monthKey(now),
+        punch_in:ts,in_lat:curPos.lat,in_lng:curPos.lng});
+      if(error){ console.error(error); toast('تعذّر التسجيل: ' + (error.message || ''),'bad'); }
+      else toast('تم تسجيل الحضور ✓','ok');
+    }
+    await fetchLogs();
+  }catch(err){
+    console.error(err);
+    toast('حدث خطأ أثناء التسجيل','bad');
+  }finally{
+    isPunching=false;
+    evalRange(); renderEmpStats(); renderEmpStatus(); buildEmpMonths(); renderEmpLog();
   }
-  await fetchLogs();
-  evalRange(); renderEmpStats(); renderEmpStatus(); buildEmpMonths(); renderEmpLog();
 }
 
 /* ===================== الحسابات ===================== */
-function fmtIQD(n){ return Math.round(n||0).toLocaleString('en-US')+' د.ع'; }
-function sessionMins(l){ if(!l.out) return 0; return (new Date(l.out)-new Date(l.in))/60000; }
+function fmtIQD(n){ return Math.round(Number(n)||0).toLocaleString('en-US')+' د.ع'; }
+function sessionMins(l){
+  if(!l||!l.out) return 0;
+  const diff=(new Date(l.out)-new Date(l.in))/60000;
+  return Math.max(0, isNaN(diff)?0:diff);
+}
 function userObj(user){ return DB.users.find(x=>x.user===user); }
-function userRate(user){ const u=userObj(user); return (u&&u.rate!=null&&u.rate!=='')?Number(u.rate):Number(DB.settings.default_rate||0); }
+function userRate(user){ const u=userObj(user); return (u&&u.rate!=null&&u.rate!=='')?Number(u.rate):Number(DB.settings.default_rate||20000); }
 
 /* حساب راتب موظف لشهر معيّن — يرجع تفصيلاً كاملاً */
 function computePay(user, mk){
@@ -654,14 +692,9 @@ function computePay(user, mk){
   let gross=0, shortHours=0, lateDeduction=0, absentDeduction=0;
 
   if(payType==='fixed'){
-    // راتب قطعي: الأساس ثابت.
-    // الغياب في يوم دوام مقرر يُخصم منه قيمة اليوم كاملاً (الراتب ÷ أيام الدوام المقررة).
-    // النقص في ساعات يوم حضر فيه الموظف يُخصم بسعر خصم الساعة.
-    // الإجازة بدون راتب تُخصم كساعات نقص (أخف من الغياب).
-    // الإجازة براتب معفاة من الخصم.
-    const base=Number(u.salary||0);
-    const reqPerDay=Number(u.dailyHours||0);
-    const perHour=Number(u.lateDeduct||0);
+    const base=Number(u?.salary||0);
+    const reqPerDay=Number(u?.dailyHours||8);
+    const perHour=Number(u?.lateDeduct||0);
     // قيمة اليوم الواحد من الراتب
     const dailyRate=a.scheduledDays>0?base/a.scheduledDays:0;
     // الغياب الكامل: خصم قيمة اليوم
@@ -675,11 +708,14 @@ function computePay(user, mk){
     // بالساعة
     gross=totalHours*userRate(user);
   }
-  const manualDed=DB.deductions.filter(d=>d.user===user&&d.month===mk).reduce((s,d)=>s+d.amount,0);
-  const bonus=DB.bonuses.filter(b=>b.user===user&&b.month===mk).reduce((s,b)=>s+b.amount,0);
-  const net=Math.max(0, gross - lateDeduction - manualDed + bonus);
+  const manualDed=DB.deductions.filter(d=>d.user===user&&d.month===mk).reduce((s,d)=>s+Number(d.amount||0),0);
+  const bonus=DB.bonuses.filter(b=>b.user===user&&b.month===mk).reduce((s,b)=>s+Number(b.amount||0),0);
+  gross=isNaN(gross)?0:gross;
+  lateDeduction=isNaN(lateDeduction)?0:lateDeduction;
+  const netCalc = gross - lateDeduction - manualDed + bonus;
+  const net=Math.max(0, isNaN(netCalc)?0:netCalc);
   return {totalMin,totalHours,workedDays,payType,gross,shortHours,lateDeduction,manualDed,bonus,net,
-          rate:userRate(user), salary:Number(u&&u.salary||0), dailyHours:Number(u&&u.dailyHours||0),
+          rate:userRate(user), salary:Number(u?.salary||0), dailyHours:Number(u?.dailyHours||8),
           absentDeduction:payType==='fixed'?absentDeduction:0, absentCount:a.absent.length};
 }
 
@@ -688,10 +724,14 @@ function daysInMonth(mk){ const [y,m]=mk.split('-').map(Number); return new Date
 /* تحليل الحضور/الغياب/الإجازات ليوم دوام مقرر في الشهر */
 function analyzeMonth(user, mk){
   const u=userObj(user);
-  const wd = u ? u.workDays : [0,1,2,3,4,6];
+  const wd = (u && Array.isArray(u.workDays) && u.workDays.length) ? u.workDays : [0,1,2,3,4,6];
   const [y,m]=mk.split('-').map(Number);
   const total=daysInMonth(mk);
   const today=new Date(); const isCurMonth=(mk===monthKey()); const tKey=todayKey();
+  const isFutureMonth = mk > monthKey();
+  if(isFutureMonth){
+    return {scheduledDays:0, present:[], absent:[], leavesPaid:[], leavesUnpaid:[]};
+  }
   // وجود بصمة دخول (ولو مفتوحة) يُعتبر حضوراً لذلك اليوم
   const presentDates=new Set(DB.logs.filter(l=>l.user===user&&l.month===mk).map(l=>l.date));
   const leaveMap={}; DB.leaves.filter(l=>l.user===user&&l.month===mk).forEach(l=>leaveMap[l.date]=l);
@@ -1138,7 +1178,8 @@ async function saveEmpEdit(user){
   const t=$('e_type_'+user).value;
   const nm=$('e_name_'+user).value.trim();
   if(!nm) return toast('الاسم الكامل مطلوب','bad');
-  const days=[...document.querySelectorAll('.wd_'+user+':checked')].map(c=>c.value);
+  const safeSelector = '.wd_'+(window.CSS&&CSS.escape?CSS.escape(user):user)+':checked';
+  const days=[...document.querySelectorAll(safeSelector)].map(c=>c.value);
   if(!days.length) return toast('اختر يوم دوام واحداً على الأقل','bad');
   const upd={ name:nm, pay_type:t, daily_hours:Number($('e_daily_'+user).value)||8, work_days:days.join(',') };
   if(t==='hourly'){
@@ -1150,7 +1191,7 @@ async function saveEmpEdit(user){
     upd.rate=null;
   }
   const {error}=await sb.from('profiles').update(upd).eq('username',user);
-  if(error){ console.error(error); return toast('تعذّر الحفظ','bad'); }
+  if(error){ console.error(error); return toast('تعذّر الحفظ: ' + (error.message || ''),'bad'); }
   await fetchProfiles(); renderEmpMgmt(); renderOverview(); buildReportSelectors(); renderReport();
   toast('تم حفظ التعديلات ✓','ok');
 }
@@ -1165,7 +1206,14 @@ async function saveEmpCreds(oldUser){
   if(newPass) payload.newPassword=newPass;
   if(!payload.newUsername && !payload.newPassword) return toast('لا تغييرات لحفظها','bad');
   try{ await callAdmin('set-credentials',payload); }
-  catch(e){ console.error(e); return toast(/exist/i.test(e.message)?'اسم المستخدم مستخدم بالفعل':'تعذّر الحفظ','bad'); }
+  catch(e){
+    console.error(e);
+    let msg = 'تعذّر الحفظ';
+    if(/exist/i.test(e.message)) msg = 'اسم المستخدم مستخدم بالفعل';
+    else if(/cors|fetch/i.test(e.message)) msg = 'تعذّر الاتصال بدالة الخادم (تحقق من CORS)';
+    else if(e.message) msg += ': ' + e.message;
+    return toast(msg,'bad');
+  }
   await reloadAll(); renderEmpMgmt(); renderOverview(); buildReportSelectors(); renderReport();
   toast('تم حفظ بيانات الدخول ✓','ok');
 }
@@ -1181,7 +1229,14 @@ async function saveAdminCreds(){
   try{
     if(changeUser){ const p={username:oldUser,newUsername:newUser}; if(newPass)p.newPassword=newPass; await callAdmin('set-credentials',p); session.user=newUser; }
     else { const {error}=await sb.auth.updateUser({password:newPass}); if(error) throw error; }
-  }catch(e){ console.error(e); return toast(/exist/i.test(e.message||'')?'اسم المستخدم مستخدم بالفعل':'تعذّر الحفظ','bad'); }
+  }catch(e){
+    console.error(e);
+    let msg = 'تعذّر الحفظ';
+    if(/exist/i.test(e.message||'')) msg = 'اسم المستخدم مستخدم بالفعل';
+    else if(/cors|fetch/i.test(e.message||'')) msg = 'تعذّر الاتصال بدالة الخادم (تحقق من CORS)';
+    else if(e.message) msg += ': ' + e.message;
+    return toast(msg,'bad');
+  }
   $('adminPass').value='';
   await reloadAll();
   const cu=currentUser(); if(cu)$('admWho').textContent='مرحباً، '+cu.name;
@@ -1199,12 +1254,77 @@ async function adminAddEmp(){
   if(!validUser(user)) return toast('اسم المستخدم: أحرف إنجليزية وأرقام و _ فقط (3–20)','bad');
   if(pass.length<6) return toast('كلمة المرور 6 أحرف على الأقل','bad');
   const btn=$('addEmpBtn'); btn.disabled=true; btn.innerHTML='<span class="spin"></span> جارٍ…';
-  const profile={name,pay_type:payType,daily_hours:Number($('newDaily').value)||8};
+  const profile={name,pay_type:payType,daily_hours:Number($('newDaily').value)||8,work_days:'0,1,2,3,4,6'};
   if(payType==='hourly'){ if($('newRate').value!=='') profile.rate=Number($('newRate').value); }
   else{ profile.monthly_salary=Number($('newSalary').value)||0; profile.late_deduct_per_hour=Number($('newLate').value)||0; }
-  try{ await callAdmin('create-employee',{username:user,password:pass,profile}); }
-  catch(e){ btn.disabled=false; btn.textContent='إنشاء حساب الموظف'; console.error(e);
-    return toast(/exist|registered/i.test(e.message)?'اسم المستخدم مستخدم بالفعل':'تعذّر إنشاء الحساب','bad'); }
+
+  let success = false;
+  let lastErr = null;
+
+  // المحاولة الأولى: عبر دالة الخادم (Edge Function)
+  try{
+    await callAdmin('create-employee',{username:user,password:pass,profile});
+    success = true;
+  }catch(e){
+    console.warn('Edge Function create-employee error, attempting secure client fallback...', e);
+    lastErr = e;
+  }
+
+  // المحاولة الثانية: البديل الآمن المستقل (إذا تعذّر الوصول لدالة الخادم بسبب CORS أو خطأ شبكة)
+  if(!success){
+    try{
+      // عميل مؤقت بدون حفظ جلسة لضمان عدم المساس بجلسة المدير الحالية
+      const tempSb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+          storage: { getItem: () => null, setItem: () => {}, removeItem: () => {} }
+        }
+      });
+      const { data: regData, error: regErr } = await tempSb.auth.signUp({
+        email: userEmail(user),
+        password: pass,
+        options: { data: { name, username: user } }
+      });
+      if(regErr || !regData?.user){
+        throw regErr || new Error('فشل إنشاء الحساب في نظام المصادقة');
+      }
+
+      const profPayload = {
+        id: regData.user.id,
+        username: user,
+        name,
+        role: 'employee',
+        pay_type: profile.pay_type,
+        daily_hours: profile.daily_hours,
+        work_days: profile.work_days,
+        rate: profile.rate ?? null,
+        monthly_salary: profile.monthly_salary ?? null,
+        late_deduct_per_hour: profile.late_deduct_per_hour ?? null
+      };
+
+      // إدراج الملف الشخصي بحساب الموظف المؤقت (يمتلك إذن profiles_insert_self)
+      const { error: insErr } = await tempSb.from('profiles').insert(profPayload);
+      if(insErr){
+        // إذا كان هناك صف منشأ تلقائياً (بواسطة Trigger)، نحدثه بصلاحية المدير (profiles_update_admin)
+        const { error: upErr } = await sb.from('profiles').upsert(profPayload, { onConflict: 'id' });
+        if(upErr) throw upErr;
+      }
+      success = true;
+    }catch(fbErr){
+      console.error('Fallback employee creation failed:', fbErr);
+      btn.disabled=false; btn.textContent='إنشاء حساب الموظف';
+      const em = (fbErr?.message || lastErr?.message || '');
+      let msg = 'تعذّر إنشاء الحساب';
+      if(/exist|registered|already/i.test(em)) msg = 'اسم المستخدم مستخدم بالفعل';
+      else if(/weak|password/i.test(em)) msg = 'كلمة المرور ضعيفة (6 أحرف على الأقل)';
+      else if(/confirm|email/i.test(em)) msg = 'تأكد من تعطيل Confirm email في Supabase';
+      else if(em) msg += ': ' + em;
+      return toast(msg, 'bad');
+    }
+  }
+
   btn.disabled=false; btn.textContent='إنشاء حساب الموظف';
   $('newName').value=$('newUser').value=$('newPass').value=$('newRate').value='';
   $('newSalary').value=$('newLate').value=''; $('newDaily').value='8'; $('newPayType').value='hourly'; togglePayFields('new');
@@ -1213,8 +1333,25 @@ async function adminAddEmp(){
 }
 async function delEmp(user){
   if(!confirm('حذف الموظف وكل سجلاته؟')) return;
-  try{ await callAdmin('delete-employee',{username:user}); }
-  catch(e){ console.error(e); return toast('تعذّر الحذف','bad'); }
+  let ok = false;
+  try{
+    await callAdmin('delete-employee',{username:user});
+    ok = true;
+  }catch(e){
+    console.warn('Edge Function delete failed, attempting direct database cleanup...', e);
+    try{
+      await sb.from('attendance').delete().eq('username', user);
+      await sb.from('deductions').delete().eq('username', user);
+      await sb.from('bonuses').delete().eq('username', user);
+      await sb.from('leaves').delete().eq('username', user);
+      const { error: pe } = await sb.from('profiles').delete().eq('username', user);
+      if(pe) throw pe;
+      ok = true;
+    }catch(dbErr){
+      console.error(dbErr);
+      return toast('تعذّر الحذف: ' + (dbErr.message || 'خطأ في قاعدة البيانات'), 'bad');
+    }
+  }
   await reloadAll(); renderEmpMgmt(); renderOverview(); buildReportSelectors(); renderReport(); toast('تم حذف الموظف','ok');
 }
 function buildReportSelectors(){

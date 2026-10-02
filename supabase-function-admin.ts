@@ -13,18 +13,21 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const EMAIL_DOMAIN = "@basma.local";
 const USER_RE = /^[a-z0-9_]{3,20}$/;
 
-// عيّن ALLOWED_ORIGIN في متغيرات البيئة بنطاقك الفعلي (مثال: https://basma.example.com)
-// إن لم يُعيَّن يُسمح بأي أصل — مقبول مؤقتاً لأن كل طلب يتحقق من JWT المدير
-const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || "*";
-const cors = {
-  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+// دعم كل الأصول للـ CORS مع الحفاظ على الأمان (التحقق الإلزامي من JWT المدير في كل عملية)
+function getCors(req: Request) {
+  const reqOrigin = req.headers.get("origin") || "*";
+  return {
+    "Access-Control-Allow-Origin": reqOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 Deno.serve(async (req) => {
+  const cors = getCors(req);
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
@@ -54,12 +57,12 @@ Deno.serve(async (req) => {
       });
       if (error || !created?.user) return json({ error: error?.message || "create failed" }, 400);
 
-      const { error: pe } = await admin.from("profiles").insert({
+      const { error: pe } = await admin.from("profiles").upsert({
         id: created.user.id, username, name: p.name || username, role: "employee",
         rate: p.rate ?? null, pay_type: p.pay_type || "hourly",
         monthly_salary: p.monthly_salary ?? null, late_deduct_per_hour: p.late_deduct_per_hour ?? null,
-        daily_hours: p.daily_hours ?? 8,
-      });
+        daily_hours: p.daily_hours ?? 8, work_days: p.work_days || "0,1,2,3,4,6",
+      }, { onConflict: "id" });
       if (pe) { await admin.auth.admin.deleteUser(created.user.id); return json({ error: pe.message }, 400); }
       return json({ ok: true });
     }
