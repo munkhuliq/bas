@@ -1273,9 +1273,10 @@ async function adminAddEmp(){
   // المحاولة الثانية: البديل الآمن المستقل (إذا تعذّر الوصول لدالة الخادم بسبب CORS أو خطأ شبكة)
   if(!success){
     try{
-      // عميل مؤقت بدون حفظ جلسة لضمان عدم المساس بجلسة المدير الحالية
+      // عميل مؤقت بدون حفظ جلسة وبمفتاح تخزين فريد لمنع تحذيرات GoTrue وتعارض الجلسات
       const tempSb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
         auth: {
+          storageKey: 'temp_auth_' + Math.random().toString(36).slice(2),
           persistSession: false,
           autoRefreshToken: false,
           detectSessionInUrl: false,
@@ -1319,6 +1320,7 @@ async function adminAddEmp(){
       let msg = 'تعذّر إنشاء الحساب';
       if(/exist|registered|already/i.test(em)) msg = 'اسم المستخدم مستخدم بالفعل';
       else if(/weak|password/i.test(em)) msg = 'كلمة المرور ضعيفة (6 أحرف على الأقل)';
+      else if(/signups not allowed/i.test(em)) msg = 'خطأ: التسجيل مغلق في سوبابيس. يجب نشر كود دالة admin المحدثة في لوحة Supabase';
       else if(/confirm|email/i.test(em)) msg = 'تأكد من تعطيل Confirm email في Supabase';
       else if(em) msg += ': ' + em;
       return toast(msg, 'bad');
