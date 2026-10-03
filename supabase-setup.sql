@@ -8,11 +8,13 @@
 -- ============================================================
 
 -- (0) حذف القديم (بداية نظيفة)
-drop table if exists public.attendance cascade;
-drop table if exists public.deductions cascade;
-drop table if exists public.leaves      cascade;
-drop table if exists public.settings    cascade;
-drop table if exists public.profiles    cascade;
+drop table if exists public.attendance    cascade;
+drop table if exists public.deductions    cascade;
+drop table if exists public.leaves        cascade;
+drop table if exists public.bonuses       cascade;
+drop table if exists public.settings      cascade;
+drop table if exists public.profiles      cascade;
+drop table if exists public.organizations cascade;
 
 -- ============================================================
 -- (1) الجداول
@@ -79,6 +81,16 @@ create table public.leaves (
   unique (username, leave_date)         -- يمنع تكرار إجازة نفس اليوم
 );
 
+create table public.bonuses (
+  id         bigint generated always as identity primary key,
+  username   text not null,
+  month      text not null,
+  bonus_date date not null,
+  amount     numeric not null,
+  reason     text,
+  created_at timestamptz default now()
+);
+
 -- صف الإعدادات الوحيد
 insert into public.settings (id) values (1) on conflict (id) do nothing;
 
@@ -87,6 +99,7 @@ create index idx_attendance_user_month on public.attendance (username, month);
 create index idx_attendance_date       on public.attendance (work_date);
 create index idx_deductions_month      on public.deductions (month);
 create index idx_leaves_month          on public.leaves (month);
+create index idx_bonuses_month         on public.bonuses (month);
 
 -- ============================================================
 -- (2) دوال مساعدة لتحديد هوية المتصل ودوره
@@ -165,6 +178,13 @@ create policy lv_select on public.leaves for select
 create policy lv_admin_write on public.leaves for all
   using ( public.is_admin() ) with check ( public.is_admin() );
 
+-- ---------- bonuses ----------
+alter table public.bonuses enable row level security;
+create policy bon_select on public.bonuses for select
+  using ( public.is_admin() or username = public.current_username() );
+create policy bon_admin_write on public.bonuses for all
+  using ( public.is_admin() ) with check ( public.is_admin() );
+
 -- ============================================================
 -- (3b) Trigger — يمنع الموظف من تعديل punch_in أو تحويل السجل لـ manual
 -- ============================================================
@@ -191,34 +211,18 @@ create trigger attendance_update_guard
 -- ============================================================
 -- (4) التحديث اللحظي (Realtime) — لتصل التغييرات فوراً للأجهزة
 -- ============================================================
-alter publication supabase_realtime add table public.attendance;
-alter publication supabase_realtime add table public.profiles;
-alter publication supabase_realtime add table public.settings;
-alter publication supabase_realtime add table public.deductions;
-alter publication supabase_realtime add table public.leaves;
+do $$
+begin
+  begin alter publication supabase_realtime add table public.attendance; exception when others then null; end;
+  begin alter publication supabase_realtime add table public.profiles;   exception when others then null; end;
+  begin alter publication supabase_realtime add table public.settings;   exception when others then null; end;
+  begin alter publication supabase_realtime add table public.deductions; exception when others then null; end;
+  begin alter publication supabase_realtime add table public.leaves;     exception when others then null; end;
+  begin alter publication supabase_realtime add table public.bonuses;    exception when others then null; end;
+end $$;
 
 -- ============================================================
--- (4b) المكافآت — تُضاف إلى راتب الموظف (عكس الخصومات)
--- ============================================================
-create table if not exists public.bonuses (
-  id         bigint generated always as identity primary key,
-  username   text not null,
-  month      text not null,
-  bonus_date date not null,
-  amount     numeric not null,
-  reason     text,
-  created_at timestamptz default now()
-);
-create index if not exists idx_bonuses_month on public.bonuses (month);
-alter table public.bonuses enable row level security;
-create policy bon_select on public.bonuses for select
-  using ( public.is_admin() or username = public.current_username() );
-create policy bon_admin_write on public.bonuses for all
-  using ( public.is_admin() ) with check ( public.is_admin() );
-alter publication supabase_realtime add table public.bonuses;
-
--- ============================================================
--- (4c) منح الصلاحيات للأدوار الافتراضية في Supabase
+-- (4b) منح الصلاحيات للأدوار الافتراضية في Supabase
 -- ============================================================
 grant usage on schema public to anon, authenticated;
 grant all on all tables in schema public to anon, authenticated;
@@ -226,11 +230,11 @@ grant all on all sequences in schema public to anon, authenticated;
 grant all on all routines in schema public to anon, authenticated;
 
 -- ============================================================
--- (5) حساب المدير الأول
---   نفّذ هذا الجزء *بعد* إنشاء مستخدم admin@basma.local من:
---   Authentication → Users → Add user (مع تفعيل Auto Confirm User)
---   ثم شغّل السطر التالي لترقيته إلى مدير:
+-- (5) حساب المدير
+--   يتم تفعيل دور المدير تلقائياً للمستخدمين الموجودين
 -- ============================================================
--- insert into public.profiles (id, username, name, role)
--- select id, 'admin', 'المدير', 'admin' from auth.users where email = 'admin@basma.local'
--- on conflict (id) do update set role = 'admin', username = 'admin';
+insert into public.profiles (id, username, name, role)
+select id, coalesce(raw_user_meta_data->>'username', 'admin'), coalesce(raw_user_meta_data->>'name', 'المدير العام'), 'admin'
+from auth.users
+where email in ('admin@basma.local', 'mam.humam@basma.local')
+on conflict (id) do update set role = 'admin';
