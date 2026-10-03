@@ -218,6 +218,14 @@ create policy bon_admin_write on public.bonuses for all
 alter publication supabase_realtime add table public.bonuses;
 
 -- ============================================================
+-- (4c) منح الصلاحيات للأدوار الافتراضية في Supabase
+-- ============================================================
+grant usage on schema public to anon, authenticated;
+grant all on all tables in schema public to anon, authenticated;
+grant all on all sequences in schema public to anon, authenticated;
+grant all on all routines in schema public to anon, authenticated;
+
+-- ============================================================
 -- (5) حساب المدير الأول
 --   نفّذ هذا الجزء *بعد* إنشاء مستخدم admin@basma.local من:
 --   Authentication → Users → Add user (مع تفعيل Auto Confirm User)
